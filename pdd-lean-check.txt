@@ -1,0 +1,33 @@
+Lean 4.28.0, Mathlib 8f9d9cff6bd728b17a24e163c9402775d9e6a365
+Local command: lake build --wfail, using local checkouts of the locked dependencies
+Theorems audited: 20
+All audited axiom lists are subsets of propext, Classical.choice, Quot.sound.
+All packaged Lean sources match the locally checked sources.
+
+ℹ [3108/3117] Replayed PDDLimit.Collisions
+info: PDDLimit/Collisions.lean:184:0: 'PDDLimit.conjecture55' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Collisions.lean:185:0: 'PDDLimit.conjecture55_limit' depends on axioms: [propext, Classical.choice, Quot.sound]
+✔ [3114/3117] Built PDDLimit.Perturbations (13s)
+ℹ [3115/3117] Built PDDLimit.Audit (19s)
+info: PDDLimit/Audit.lean:5:0: 'PDDLimit.conjecture55' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:6:0: 'PDDLimit.conjecture55_limit' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:7:0: 'PDDLimit.crystal_average_bounded_error' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:8:0: 'PDDLimit.crystal_quantile_bounded_error' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:9:0: 'PDDLimit.LineExample.triangle_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:10:0: 'PDDLimit.LineExample.triangle_first_ten' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:11:0: 'PDDLimit.LineExample.nearest_quantile' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:12:0: 'PDDLimit.LineExample.orderTwo_eq_paper_fit' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:13:0: 'PDDLimit.LineExample.jointDistance_eq_transport' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:14:0: 'PDDLimit.LineExample.refitted_screening_counterexample' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:15:0: 'PDDLimit.LineExample.rms_screening_counterexample' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:16:0: 'PDDLimit.Screening.fixed_baseline_lp' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:17:0: 'PDDLimit.Screening.fixed_baseline_sup' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:18:0: 'PDDLimit.Screening.fixed_baseline_rms' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:19:0: 'PDDLimit.Screening.joint_max_scale_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:20:0: 'PDDLimit.Perturbation.mean_distance_change' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:21:0: 'PDDLimit.Perturbation.score_quantile_change' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:22:0: 'PDDLimit.FittedPDA.fitted_rms_transport_bound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:23:0: 'PDDLimit.FittedPDA.refitted_squared_transport_prefix' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: PDDLimit/Audit.lean:24:0: 'PDDLimit.FittedPDA.paper_final_multiplier_gt_one' depends on axioms: [propext, Classical.choice, Quot.sound]
+✔ [3116/3117] Built PDDLimit (13s)
+Build completed successfully (3117 jobs).
