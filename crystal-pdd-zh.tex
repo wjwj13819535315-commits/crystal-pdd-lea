@@ -1,209 +1,522 @@
-% 使用 XeLaTeX 编译两遍以解析交叉引用。
-\documentclass[11pt,a4paper,UTF8]{ctexart}
-\usepackage[margin=25mm]{geometry}
-\usepackage{amsmath,amssymb,amsthm,booktabs}
-\usepackage[hidelinks]{hyperref}
-\setlength{\emergencystretch}{3em}
+% 在本目录用 latexmk -xelatex 或 Tectonic 编译。
+\documentclass[11pt,a4paper,UTF8,fontset=fandol]{ctexart}
+\input{preamble.tex}
 \newtheorem{theorem}{定理}
+\newtheorem{lemma}{引理}
 \theoremstyle{definition}
 \newtheorem{definition}{定义}
 \renewcommand{\proofname}{证明}
-\title{晶体高阶距离分布的渐近公式与筛选界}
-\author{}
+\title{晶体高阶逐点距离分布的渐近规律、筛选下界与扰动稳定性}
+\author{Wang Jian\thanks{通讯作者。}}
 \date{}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-晶体的高阶逐点距离分布将周期点集表示为局部点组得分的排序结果。对 Widdowson 和 Kurlin 提出的平均成对距离得分，本文证明，第 \(k\) 个得分等于 \((h!k)^{1/(nh)}\) 乘以一个显式系数，再加上有界误差。由此证明原文的猜想 5.5，并将极限系数写成点密度和一个通用范数单位球体积的函数。我们用整数格点 \(\mathbb Z\) 与 \(2\mathbb Z\) 给出逐长度拟合基线时前缀筛选失效的精确反例。固定基线配合未归一化行代价可恢复筛选下界，平方欧氏运输代价则允许逐长度重新拟合。对原有均方根代价，基于耦合的证明将扰动上界改进到 \(2\varepsilon\)。主要定理和有限不等式证书均已通过 Lean~4 检验。
+比较晶体数据库中的不同条目，需要从各异的晶胞和坐标表示中提取一致的几何信息。高阶逐点距离分布对局部点组的距离得分排序，逐点偏差分布则在这些得分中扣除密度背景。高阶得分的精确增长规律，以及能否用短偏差序列可靠排除候选结构，需要分别论证。本文把邻点组表示为乘积空间中的向量，通过范数球中的格点计数、重合元组排除和带误差的计数反演，证明 Widdowson 和 Kurlin 的高阶极限猜想在满秩无标签周期点集上的结论，并得到对各基元点一致的有界加性误差。对二阶情形，利用椭球截面求出任意维数的体积系数。整数格点 \(\Z\) 和 \(2\Z\) 给出逐长度拟合时短前缀筛选失效的精确反例。通过固定基线或改用平方欧氏运输代价，可恢复有数学保证的筛选下界。对满足权重保持配对条件的扰动，正交投影把拟合后均方根运输距离控制在位移幅度的两倍以内。本文以确定性的格点实验展示这些结论，并用 Lean~4 检查主要计数、筛选与稳定性命题，为晶体几何检索中何时可以提前排除候选结构提供依据。
 \end{abstract}
 
-\noindent\textbf{关键词：} 周期点集，逐点距离分布，格点计数，最优运输，形式化验证。
+\noindent\textbf{关键词}　周期点集，逐点距离分布，格点计数，最优运输，晶体筛选，形式化验证。
 
-\section{引言}
+\section{引言}\label{sec:intro}
 
-晶体数据库可以用不同晶胞和基元代表点记录同一周期几何结构。逐点距离分布（PDD）通过各基元点到邻点的距离描述无限点集，可用于比较晶体几何 \cite{pdd}。Widdowson 和 Kurlin \cite{higher} 将该构造从单个邻点推广到若干邻点组成的点组。原文的猜想 5.5 询问，经所提方式归一化后，\(h\) 阶排序得分的均值是否存在极限。原文引理 5.8 进一步提出，可用拟合基线后得到的短前缀筛除相距较远的结构。
+原子排列决定了材料的部分对称性与连接方式。金刚石和石墨都由碳组成，原子的空间排列却不同。另一方面，晶体数据库中的两个条目即使采用不同的晶胞、坐标轴和原点，也可能记录同一个无限原子排列。精修坐标、热运动、结构弛豫以及数值舍入还会使几何上相近的结构出现小幅差异。因此，在解释材料组成和性质之前，高通量结构检索需要一种一致的几何比较方式 \cite{wkpdd,wkhigher}。
 
-本文首先求出极限系数，并证明每个基元点的得分均满足有界加性误差。随后检验原文运输距离下的筛选性质。由于拟合系数随前缀长度改变，最简单的一维整数格点就会出现距离下降。我们给出两种可保留短前缀下界的方法，并针对原文的均方根代价导出更紧的扰动界。全文研究欧氏空间中的无标签满秩周期点集。
+晶胞参数给出平移向量的长度和夹角，便于比较采用相容晶胞的结构。变换晶格基底或使用超胞会改变这些参数，却可以保持无限点集相同。空间群描述对称性，属于同一空间群的晶体仍可具有不同的晶格参数和内部坐标。实验原子对分布函数（Pair Distribution Function，PDF）利用总散射信息研究原子间距和局部有序性 \cite{billinge}。这类径向信息汇总了不同位置的原子对。逐点距离分布（Pointwise Distance Distribution，PDD）则保留各基元位置的排序距离行及其权重，比较对象是由坐标描述的局部几何环境。
 
-\section{得分与运输距离}\label{sec:setup}
+只保留各点到邻点的径向序列，仍可能使非等距周期点集得到相同分布。文献 \cite{wkhigher} 的例 2.5 给出了实例。高阶 PDD 把邻点之间的距离也纳入局部得分。在排序靠后的位置，均匀分布的远处点组数量逐渐体现整体点密度。逐点偏差分布（Pointwise Deviation Distribution，PDA，原文称 pointwise deviation from asymptotic）扣除这一背景曲线，使有限排序位置的偏差可以单独比较。若短序列能给出完整距离的严格下界，就有可能在计算长序列之前排除部分候选。
 
-设 \(S=\Lambda+M\subset\mathbb R^n\)，其中 \(\Lambda\) 是满秩格，\(M\) 由 \(m\ge1\) 个模 \(\Lambda\) 不同的代表点组成。基本胞 \(U\) 的体积为 \(|U|\)，点密度为 \(\rho=m/|U|\)。固定阶数 \(h\ge1\)，记 \(d=nh\)。
+文献 \cite{wkhigher} 的问题 1.2 同时要求描述符对一般位置结构具有区分能力、可重构性、Lipschitz 连续性和多项式时间可计算性。该文定理 4.3 给出原始 PDD 在坐标扰动下的距离界，定理 5.1 给出一阶极限以及高阶增长界。猜想 5.5 进一步问高阶得分的归一化均值是否有极限。引理 5.8 声称 PDA 的短前缀距离能够给出筛选下界，包括不同长度重新拟合与均方根归一化的情形。推论 5.9 研究拟合后偏差分布的稳定性。本文集中解决这些渐近、筛选和稳定性问题。
 
-\begin{definition}\label{def:score}
-对 \(p\in M\)，从 \(S\setminus\{p\}\) 选取 \(h\) 个互异点组成无序点组。记它们相对于 \(p\) 的位移为 \(y_i\)，并令 \(y_0=0\)。点组的得分定义为
-\begin{equation}\label{eq:score}
-G(y)=\frac{2}{h(h+1)}\sum_{0\le i<j\le h}\|y_i-y_j\|_2 .
+本文的结果包括带逐基元点有界误差的显式极限、二阶范数球体积的解析式、一个精确的短前缀筛选反例、两种有证明的筛选下界，以及在明确配对假设下更紧的均方根扰动界。数值算例展示这些结论在具体格点上的表现。形式化验证章节逐项说明 Lean 实际检查的命题和假设。
+
+\section{周期结构、距离排序与运输代价}\label{sec:setup}
+
+\subsection{晶格、晶胞和基元}
+
+设 \(n\ge1\)，\(A:\R^n\to\R^n\) 是可逆线性映射。满秩晶格 \(\Lambda=A\Z^n\) 指定周期平移。半开基本胞 \(U=A[0,1)^n\) 对每个平移轨道选取一个位置。基元 \(M\subset U\) 是其中被占据的代表点的集合。沿晶格平移基元就得到无限点集
+\begin{equation}\label{eq:crystal}
+S=\Lambda+M,\qquad m=|M|\ge1,\qquad
+\rho=\frac{m}{|U|},\qquad |U|=|\det A|.
 \end{equation}
-把这些得分从小到大排列，得到第 \(j\) 个得分 \(a_p(h,j)\)。不同点组的相同得分按重数计入。记 \(a(h,j)=m^{-1}\sum_{p\in M}a_p(h,j)\)。
-\end{definition}
+一维例子 \(\{0,1,2\}+4\Z\) 表示每四个长度单位重复三个点。二维方格 \(\Z^2\) 可由 \((1,0),(0,1)\) 生成，把第二个向量换成 \((1,1)\) 就得到同一方格的斜晶胞（图~\ref{fig:geometry}）。三维的 \(\Z^3\) 则是简单立方点阵。文献 \cite{wkhigher} 的定义 1.1 还允许平移秩 \(l<n\) 的情况，而式 \eqref{eq:crystal} 使用的是满秩时有限的胞体积。
 
-单阶逐点距离分布 \(\operatorname{PDD}^{\{h\}}(S;k)\) 给每一行 \(x_p=(a_p(h,j))_{j=1}^{k}\) 赋权 \(1/m\)。相同行可合并，权重相加。记 \(\beta_j=(h!j)^{1/d}\)，以及 \(\beta=(\beta_j)_{j=1}^{k}\)。单阶逐点偏差分布（PDA）的行写成 \(x_p-c_S(k)\beta\)。当 \(h\ge2\) 时，文献 \cite{higher} 的定义 5.6 采用最小二乘系数
-\begin{equation}\label{eq:fit}
-c_S(k)=\frac{\langle\bar x,\beta\rangle}{\|\beta\|_2^2},
-\qquad
-\bar x=\frac{1}{m}\sum_{p\in M}x_p .
-\end{equation}
-当 \(h=1\) 时，原文采用固定的点堆积系数 \((\rho\,\operatorname{vol}_n B_{n,1})^{-1/n}\)，其中 \(B_{n,1}\) 是欧氏单位球。
+\begin{figure}[htbp]
+\centering\includegraphics[width=.94\linewidth]{geometry-zh.pdf}
+\caption{周期点集的表示示意。左图标出 \(\{0,1,2\}+4\Z\) 的一个基元，中图与右图用不同晶胞表示同一方格。阴影或轮廓标出晶胞与代表点。}\label{fig:geometry}
+\end{figure}
 
-对有限加权行分布，耦合是行和与列和等于预定权重的非负矩阵 \(\pi=(\pi_{pr})\)。地球移动距离（EMD）是所有耦合下期望行代价的最小值，其中 \(\mathbb E_\pi f=\sum_{p,r}\pi_{pr}f(p,r)\)。用 \(L_q\) 表示未归一化的 \(\ell_q\) 范数，并包括 \(q=\infty\) 的情形。对于 \(k\) 列的行，均方根代价为 \(\mathrm{RMS}(z)=\|z\|_2/\sqrt{k}\)。依照文献 \cite{higher} 的定义 5.7，联合距离取第 1 阶至第 \(h\) 阶各单阶 EMD 的最大值。证明中可保留基元行的索引。任何合并行之间的耦合都可按原行权重比例拆开，代价保持相同。
+等距变换形如 \(x\mapsto Hx+t\)，其中 \(H\) 是正交变换。对这类变换保持不变的量称为几何不变量。把基元代表点沿晶格平移，点周围的几何环境不变。选用超胞时，每种原有环境按相同比例重复。若同一满秩周期点集有两种晶格表示，两种晶格都包含在它的全体平移周期群内。局部有限性保证该群离散，两个满秩子格在其中均有有限指数，因此它们有共同的有限指数子格。通过共同超胞重复计数，可比较两种表示的加权行和密度。本文将原子建模为无标签点。元素种类、占位率和成键能量需要另外建模。
 
-\section{高阶极限}\label{sec:limit}
+\subsection{从一阶 PDD 到高阶点组得分}
 
-\begin{theorem}\label{thm:limit}
-令 \(B_{n,h}=\{y\in(\mathbb R^n)^h:G(y)\le1\}\)，\(V_{n,h}=\operatorname{vol}_d(B_{n,h})\)。记
-\begin{equation}\label{eq:constant}
-C_*=(\rho^h V_{n,h})^{-1/d},
-\end{equation}
-则有
-\begin{equation}\label{eq:limit}
-a_p(h,k)=C_*(h!k)^{1/d}+O(1),
-\qquad
-a(h,k)=C_*(h!k)^{1/d}+O(1).
-\end{equation}
-第一个误差界对所有 \(p\in M\) 一致成立。特别地，归一化后的基元平均得分趋于 \(C_*\)。
-\end{theorem}
+按照文献 \cite{wkhigher} 的定义 2.3，在 \(M\) 中选定中心点 \(p\)，计算它到 \(S\setminus\{p\}\) 中各邻点的欧氏距离。取最短的 \(k\) 个距离从小到大排成一行。不同邻点给出相同距离时仍分别计数。所有基元行的初始权重为 \(1/m\)，将相同行合并并累加权重，就得到 PDD。
 
-\begin{proof}
-函数 \(G\) 是范数。绝对齐次性和三角不等式来自欧氏范数。含 \(i=0\) 的各项保证 \(G(y)=0\) 时所有 \(y_j\) 均为零。其单位球紧致且内部非空，半径为 \(R\) 的球是 \(RB_{n,h}\)，体积为 \(V_{n,h}R^d\)。因此，在任意有界得分区间内，点组数有限。
-
-固定 \(p\)。暂不限制选点互异时，有序位移元组构成 \((S-p)^h\)，它是 \(\Lambda^h\) 的 \(m^h\) 个不同陪集之并。对每个陪集的每个点，平移同一个包含 \(0\) 的 \(\Lambda^h\) 基本胞，使陪集点成为其锚点。设基本胞的 \(G\) 半径上界为 \(D\)。当 \(R>D\) 时，由三角不等式，锚点落在 \(RB_{n,h}\) 内的基本胞之并包含 \((R-D)B_{n,h}\)，且包含于 \((R+D)B_{n,h}\)。各基本胞内部互不相交，体积均为 \(|U|^h\)。对各陪集求和得到有序元组总数
-\begin{equation}\label{eq:ordered}
-\rho^h V_{n,h}R^d+O(R^{d-1}).
-\end{equation}
-
-按定义~\ref{def:score} 排除的元组满足某个 \(y_i=0\)，或某两个不同下标对应的 \(y_i=y_j\)。这两种情况下，最多只有 \(h-1\) 个自由位移。由于每个位移到 \(0\) 的距离都参与 \(G\) 的求和，自由位移均在半径 \(h(h+1)R/2\) 的欧氏球内。对欧氏范数采用同样的基本胞估计可知，球内有 \(O(R^n)\) 个 \(S-p\) 中的点。因此，排除的元组有 \(O(R^{n(h-1)})\) 个，属于 \(O(R^{d-1})\)。每个合规的无序点组恰对应 \(h!\) 个排列。记 \(N_p(R)\) 为得分不超过 \(R\) 的点组数，则
-\begin{equation}\label{eq:count}
-N_p(R)=AR^d+O(R^{d-1}),\qquad A=\rho^h V_{n,h}/h!.
-\end{equation}
-
-令 \(T=(k/A)^{1/d}\)，并取对所有 \(p\in M\) 有效的误差常数 \(E\)。选取 \(L>0\)，使 \(dAL>E\)。当 \(T\) 充分大时，\(N_p(T+L)\) 的下界至少为 \(k\)，且 \(N_p(T-L)\) 的上界小于 \(k\)。这是因为 \(AR^d\) 在 \(T\pm L\) 处相对于 \(AT^d\) 的增量为 \(\pm dAL\,T^{d-1}+o(T^{d-1})\)，而 \((T\pm L)^{d-1}/T^{d-1}\) 趋于 \(1\)。由此 \(T-L<a_p(h,k)\le T+L\)。适当增大常数覆盖其余有限的下标，并对 \(M\) 取平均，即得 \eqref{eq:limit}。
-\end{proof}
-
-当 \(h=1\) 时，式 \eqref{eq:constant} 中的球为欧氏球。当 \(h\ge2\) 时，定理证明了文献 \cite{higher} 的猜想 5.5。固定维数与阶数后，极限系数仅取决于点密度。同密度结构之间的差异仍可体现在有限排序位置的得分上。
-
-\section{重新拟合偏差的反例}\label{sec:counterexample}
-
-\begin{theorem}\label{thm:counterexample}
-取 \(S=\mathbb Z\) 和 \(Q=2\mathbb Z\)，令 \(D_k\) 为采用文献 \cite{higher} 的基线及 \(L_\infty\) 行代价的联合二阶 PDA 距离。则 \(D_{10}\le533/1000<D_9\)。在一阶时，以均方根为行代价的 EMD 也会从 \(k=1\) 到 \(k=2\) 下降。
-\end{theorem}
-
-\begin{proof}
-对格点集 \(s\mathbb Z\)，\(s>0\)，中心 \(0\) 与两个邻点组成的三点组得分为 \(2s\ell/3\)，其中 \(\ell\) 为三个整数下标的跨度。当 \(\ell\ge2\) 时，\(0\) 作左端点时有 \(\ell-1\) 种选择，作右端点时也有 \(\ell-1\) 种，位于两端点之间时再有 \(\ell-1\) 种。跨度不超过 \(\ell\) 的点组总数为 \(3\ell(\ell-1)/2\)。\(s=1\) 时，前十个二阶得分为
-\begin{equation}\label{eq:firstten}
-(a_1,\ldots,a_{10})=(4/3,4/3,4/3,2,2,2,2,2,2,8/3).
-\end{equation}
-按 \(s\) 缩放时，原始得分和拟合系数均乘以 \(s\)。每个格点集只有一个基元行，因此其唯一耦合的质量为一。把 \(\sqrt{2}\) 吸收到系数中，\(\mathbb Z\) 和 \(2\mathbb Z\) 的二阶 \(L_\infty\) 距离为
-\begin{equation}\label{eq:distance}
-\max_{1\le j\le k}|a_j-b_k\sqrt j|,
-\qquad b_k=\frac{\sum_{j=1}^k a_j\sqrt j}{\sum_{j=1}^k j}.
-\end{equation}
+在一维例子 \(\{0,1,2\}+4\Z\) 中，中心 \(0\) 的前四个邻点可取 \(1,-2,2,-3\)，对应距离 \(1,2,2,3\)。中心 \(1\) 的前四个邻点为 \(0,2,-2,4\)，距离为 \(1,1,3,3\)。关于 \(1\) 的反射把中心 \(0\) 换到 \(2\)，两行相同。表~\ref{tab:pdd} 展示合并前的矩阵。
 
 \begin{table}[htbp]
 \centering
-\caption{拟合系数与二阶距离的有理数界。}\label{tab:certificate}
-\begin{tabular}{@{}cll@{}}
+\caption{\(\{0,1,2\}+4\Z\) 在 \(k=4\) 时的一阶 PDD 构造。第一个中心和第三个中心的距离行合并。}\label{tab:pdd}
+\begin{tabular}{ccc}
 \toprule
-\(k\) & \(b_k\) 的取值范围 & 二阶距离的界 \\
+中心 & 前四个距离 & 初始权重\\
 \midrule
-9 & \([0.796618,0.796620]\) & \(>0.533\) \\
-10 & \([0.805101,0.805102]\) & \(\le0.533\) \\
+\(0\) & \((1,2,2,3)\) & \(1/3\)\\
+\(1\) & \((1,1,3,3)\) & \(1/3\)\\
+\(2\) & \((1,2,2,3)\) & \(1/3\)\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-下列整数向量的第 \(j\) 项除以 \(10^6\) 给出 \(\sqrt j\) 的下界，该项加一后再除以 \(10^6\) 给出上界。两侧的界均可通过平方验证。
-\begin{equation}\label{eq:rootcert}
+将权重写在行首，合并后的表示是 \(\bigl(\begin{smallmatrix}2/3&1&2&2&3\\1/3&1&1&3&3\end{smallmatrix}\bigr)\)。在二维方格 \(\Z^2\) 中，到轴向四点的距离都是 \(1\)，接下来到四个对角邻点的距离都是 \(\sqrt2\)。因此六列 PDD 只有一行 \((1,1,1,1,\sqrt2,\sqrt2)\)，权重为一。改变晶胞遵循上一节的代表点论证。等距变换一一对应所有邻点并保持距离，因而保持 PDD。一阶径向序列只记录同一球面上有多少邻点，球面上的角度排列可能丢失。
+
+\begin{definition}\label{def:score}
+固定中心 \(p\)，从 \(S\setminus\{p\}\) 中取 \(h\) 个互异邻点组成无序点组。记位移为 \(y=(y_1,\ldots,y_h)\)，并置 \(y_0=0\)。定义得分
+\begin{equation}\label{eq:score}
+G(y)=\frac{2}{h(h+1)}\sum_{0\le i<j\le h}\|y_i-y_j\|_2 .
+\end{equation}
+设 \(a_p(h,j)\) 是该中心的第 \(j\) 小得分。同分点组按重数计入。
+
+基元平均为
+\(a(h,j)=m^{-1}\sum_{p\in M}a_p(h,j)\)。
+单阶分布 \(\PDD^{\{h\}}(S;k)\) 给每行 \(x_p=(a_p(h,j))_{j=1}^k\) 赋权 \(1/m\)，允许合并相同行。
+\end{definition}
+
+一个中心与 \(h\) 个邻点共有 \(h+1\) 点，点对数是 \(\binom{h+1}{2}\)。式 \eqref{eq:score} 用这一数目除距离总和得到平均值。当 \(h=1\) 时只计算中心到邻点的距离。当 \(h=2\) 时，若邻点为二维坐标的两个单位向量，三边为 \(1,1,\sqrt2\)，得分为 \((2+\sqrt2)/3\)。当 \(h=3\) 时，原点和三条互相正交的单位向量端点构成四面体，六条边给出 \((3+3\sqrt2)/6=(1+\sqrt2)/2\)。共线或共面的构型只要点互异也参与排序。阶数 \(h\) 决定每组的邻点数，前缀长度 \(k\) 决定保留多少不同点组。以整数格点为例，前十个二阶得分会用到两个最近邻点之外的位置。由于邻点之间的距离也参与打分，有时仅凭单个邻点到中心的远近也无法确定最优点组。
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.94\linewidth]{orders-zh.pdf}
+\caption{一阶、二阶和三阶点组示意。方形标记为中心，各条边参与平均距离计算。右图是三维构型的平面投影。}\label{fig:orders}
+\end{figure}
+
+依文献 \cite{wkhigher} 定义 3.1，以 \(\PDD^{\{h\}}\) 表示单阶分布，以 \(\PDD^{(h)}\) 表示从第 1 阶至第 \(h\) 阶拼接得到的描述符。下文的联合距离是各阶分别计算运输距离后取最大值。如果直接对拼接行运输，就需要让各阶共享同一个行配对。
+
+\subsection{点密度、渐近尺度与基线拟合}
+
+在 \(\Z\) 上，距离中心不超过 \(R\) 的点大约有 \(2R\) 个。在 \(2\Z\) 上，相同区间大约只有 \(R\) 个点。二维和三维分别要把区间长度换成面积和体积。当区域增大时，内部大部分完整晶胞各含 \(m\) 个点，边界上的部分晶胞形成较小的修正。若把 \(h\) 个位移合成一个向量，其乘积空间维数为 \(d=nh\)，把所有坐标放大 \(R\) 倍会令体积放大 \(R^d\) 倍。范数用来衡量向量的大小，其单位球是大小不超过一的向量构成的区域。这里的范数球位于乘积空间，用于计算点组数量。
+
+记 \(\beta_j=(h!j)^{1/d}\)，以及长度为 \(k\) 的预测向量 \(\beta=(\beta_1,\ldots,\beta_k)\)。依文献 \cite{wkhigher} 的定义 5.6，在 \(h\ge2\) 时用同一条拟合基线 \(c_S(k)\beta\) 扣除每一行的增长趋势。令 \(\bar x=m^{-1}\sum_p x_p\)。对 \(\|\bar x-t\beta\|_2^2\) 求最小值得到
+\begin{equation}\label{eq:fit}
+c_S(k)=\frac{\langle\bar x,\beta\rangle}{\|\beta\|_2^2},
+\qquad
+\PDA^{\{h\}}(S;k):\ p\longmapsto x_p-c_S(k)\beta .
+\end{equation}
+目标关于 \(t\) 的导数为 \(2t\|\beta\|_2^2-2\langle\bar x,\beta\rangle\)，二次项系数为正，所以导数为零的位置给出唯一极小值。拟合系数表示所选前缀下预测曲线对应的长度尺度。改变 \(k\) 会改变分子和分母，因此前几列的偏差也可能改变。一阶时原文使用固定的点堆积系数 \(\PPC(S)=(\rho\,\omega_n)^{-1/n}\)，其中 \(\omega_n\) 是欧氏单位球体积。定理~\ref{thm:limit} 将给出可用于高阶固定基线的显式系数。图~\ref{fig:fit} 绘出了第~\ref{sec:counter} 节所用实例的拟合和偏差。
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.94\linewidth]{baselines-zh.pdf}
+\caption{\(\Z\) 的二阶原始得分与基线（左）以及有符号偏差（右）。两条拟合曲线分别使用 \(k=9\) 和 \(k=10\)，第一列的偏差已随之改变。}\label{fig:fit}
+\end{figure}
+
+\subsection{耦合、地球移动距离与不同代价}
+
+可以把每一个有权重的距离行看作一堆沙子。比较两种晶体时，需要把第一组沙子搬成第二组的分布。耦合矩阵 \(\pi=(\pi_{pr})\) 记录从源行 \(p\) 搬到目标行 \(r\) 的质量。矩阵元素非负，行和与列和分别是两组预定权重 \(w_p,v_r\)，称为边缘分布。可行集合 \(\Pi(w,v)\) 包含 \(\pi_{pr}=w_pv_r\)，并且是紧集。文献 \cite{wkhigher} 定义 4.1 的地球移动距离（Earth Mover's Distance，EMD）在所有耦合中寻找期望代价最小者
+\begin{equation}\label{eq:emd}
+\EMD_c(X,Y)=\min_{\pi\in\Pi(w,v)}\E_\pi[c(x_p,y_r)],
+\qquad \E_\pi f=\sum_{p,r}\pi_{pr}f(p,r).
+\end{equation}
+计算时可以合并相同行。将合并行之间的运输质量按原行权重比例拆分，可恢复原行之间的耦合，且代价相同。因此，在比较两个前缀长度时，可以一直保留原始行索引和权重。
+
+对 \(z\in\R^k\)，有限 \(q\) 时 \(L_q(z)=(\sum_j|z_j|^q)^{1/q}\)，其中 \(1\le q<\infty\)；\(L_\infty(z)=\max_j|z_j|\)。\(L_2\) 是欧氏距离。均方根代价（Root Mean Square，RMS）在欧氏距离基础上除以 \(\sqrt k\)，即 \(\RMS(z)=\|z\|_2/\sqrt k\)。先对欧氏距离平方、再求耦合平均的最小值，得到二阶 Wasserstein 距离的平方 \(W_2^2\) \cite{transport}。对运输平均后的结果开方才得到 \(W_2\)。原文的均方根 EMD 则先计算每一对行的 \(\|z\|_2/\sqrt k\)，再取耦合平均。当地面代价本身是度量时，EMD 是行分布上的度量，转用于可能共享描述符的结构时可以是伪度量。平方欧氏运输是代价。例如，三个单点行 \(0,1,2\) 的平方距离满足 \(4>1+1\)，因而违反三角不等式。
+
+取源位置 \(0,3\)，权重分别为 \(3/4,1/4\)。目标位置 \(1,4\) 的权重各为 \(1/2\)。若第一格运输质量为 \(t\)，则其余各格由边缘权重确定
+\begin{equation}\label{eq:toytransport}
+\pi=\begin{pmatrix}t&3/4-t\\1/2-t&t-1/4\end{pmatrix},
+\qquad 1/4\le t\le1/2 .
+\end{equation}
+绝对距离矩阵为 \(\bigl(\begin{smallmatrix}1&4\\2&1\end{smallmatrix}\bigr)\)，代价为 \(15/4-4t\)。最小值在 \(t=1/2\) 取得，等于 \(7/4\)。平方欧氏代价 \(55/4-18t\) 在同一位置取得最小值 \(19/4\)，此时 \(W_2=\sqrt{19}/2\)。位置 \(0\) 的源质量大于位置 \(1\) 的需求，所以一部分必须搬到位置 \(4\)。最优配对见图~\ref{fig:projection} 左图。
+
+\section{高阶距离分布的渐近极限}\label{sec:limit}
+
+\subsection{把排序问题转化为计数问题}
+
+固定中心 \(p\)，用 \(N_p(R)\) 表示得分不超过 \(R\) 的合规无序点组数。\(a_p(h,k)\le R\) 等价于 \(N_p(R)\ge k\)。由此，可以先研究得分阈值扩大时点组数量的增长，再由数量反推出排序得分。为使格点结构清楚，第一步先计算全部有序元组，暂不排除重合。第二步扣除重合情形，再把排列计数换成无序计数。
+
+\begin{lemma}\label{lem:norm}
+式 \eqref{eq:score} 中的 \(G\) 在 \(y_0=0\) 的条件下定义了 \((\R^n)^h\) 上的范数，且
+\begin{equation}\label{eq:radial}
+G(y)\ge\frac{2}{h+1}\|y_i\|_2,\qquad 1\le i\le h .
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+每条边的长度非负，所以 \(G\) 非负。若 \(G=0\)，从 \(0\) 到各 \(y_i\) 的距离均为零，于是整个元组为零。元组乘一个标量时，所有边长乘该标量的绝对值。对两个元组 \(y,z\)，\(y+z\) 中每条边的位移是两条对应边位移之和。对各条边应用欧氏三角不等式并求平均，得到 \(G(y+z)\le G(y)+G(z)\)。
+
+为证明式 \eqref{eq:radial}，在总和中先取 \(0\) 到 \(y_i\) 的直边。每个其他邻点 \(y_j\) 又给出一条路径 \(0,y_j,y_i\)，两条边长之和至少是 \(\|y_i\|_2\)。直边和这些路径中选用的边各不相同，总和至少为 \(h\|y_i\|_2\)。乘归一化因子即得所述下界。
+\end{proof}
+
+单位球 \(B_{n,h}=\{y:G(y)\le1\}\) 因连续性而闭，且含零点的一个开邻域。式 \eqref{eq:radial} 给每一位移提供有界性，故单位球紧且内部非空。记 \(V_{n,h}=\vol_d(B_{n,h})\)，其中 \(d=nh\)。半径为 \(R\) 的范数球的体积为 \(R^d V_{n,h}\)。同一个位移下界也保证任一有界得分区间内只有有限个点组。
+
+\subsection{乘积晶格计数与重合排除}
+
+暂不限制点的互异性。有序位移元组构成 \((S-p)^h\)，由 \(\Lambda^h\) 的 \(m^h\) 个互异陪集组成。对一个陪集，给每个锚点附上同样形状的半开基本胞，体积为 \(|U|^h\)。存在常数 \(D\)，使胞内每一点与锚点的 \(G\) 距离至多为 \(D\)。由三角不等式，锚点落在 \(RB_{n,h}\) 中的所有胞的并包含于 \((R+D)B_{n,h}\)。反过来，在 \((R-D)B_{n,h}\) 中的点所属晶胞的锚点必落在 \(RB_{n,h}\) 中，所以这些胞覆盖内球。该构造可以在每个陪集内独立使用，二维示意见图~\ref{fig:count}。
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.82\linewidth]{counting-zh.pdf}
+\caption{二维晶胞计数示意。锚点在中间球内的胞覆盖内球，并且全部落在外球内。图中用欧氏球说明乘积空间范数球的内外包含关系。}\label{fig:count}
+\end{figure}
+
+固定 \(D\)，对 \((R\pm D)^d\) 作二项展开，其主项是 \(R^d\)，其余各项至多为 \(O(R^{d-1})\)。把内外球体积各除以胞体积，再对陪集求和，从而得到
+\begin{equation}\label{eq:ordered}
+\#\bigl((S-p)^h\cap RB_{n,h}\bigr)=\rho^h V_{n,h}R^d+O(R^{d-1}).
+\end{equation}
+这也是误差阶的几何来源。靠近边界的晶胞落在固定厚度的壳层，因而贡献的体积比整体少一个幂次。
+
+重合元组满足某个 \(y_i=0\)，或某两个不同下标对应位移满足 \(y_i=y_j\)。任一等式至多留下 \(h-1\) 个自由位移。根据式 \eqref{eq:radial}，各位移落在半径 \((h+1)R/2\) 的欧氏球内。对欧氏球应用同样的晶胞计数得到每个自由位移有 \(O(R^n)\) 种选择。对有限个等式取并集，总计 \(O(R^{n(h-1)})\)，至多与 \(R^{d-1}\) 同阶。一阶仅需排除中心本身。剩下的无序组各有恰好 \(h!\) 个排列，且得分相同。因此
+\begin{equation}\label{eq:count}
+N_p(R)=A_0R^d+O(R^{d-1}),\qquad A_0=\rho^h V_{n,h}/h! .
+\end{equation}
+
+\subsection{反演计数与有界误差}
+
+\begin{theorem}\label{thm:limit}
+对无标签满秩周期点集，以及每个 \(n,h\ge1\) 和基元点 \(p\)，当 \(k\to\infty\) 时有
+\begin{equation}\label{eq:limit}
 \begin{aligned}
-(\ell_1,\ldots,\ell_{10})={}&(1000000,1414213,1732050,2000000,2236067,\\
-&2449489,2645751,2828427,3000000,3162277).
+C_*&=(\rho^h V_{n,h})^{-1/(nh)},\\
+a_p(h,k)&=C_*(h!k)^{1/(nh)}+O(1),\\
+a(h,k)&=C_*(h!k)^{1/(nh)}+O(1).
 \end{aligned}
 \end{equation}
-代入后得到表~\ref{tab:certificate} 中的系数区间。\(k=9\) 时，第一项的绝对偏差至少为 \(4/3-0.796620>0.533\)。\(k=10\) 时，将同一组有理数界代入式 \eqref{eq:distance}，可得 \(j=1,3,4,9,10\) 的绝对偏差均不超过 \(0.533\)。这些下标是式 \eqref{eq:firstten} 中各常值段的端点，而 \(a_j-b_{10}\sqrt j\) 在每段内单调下降，因此端点界覆盖所有列。
+对给定结构，第一个加性误差界可统一用于所有基元点。特别地，\(a(h,k)/(h!k)^{1/(nh)}\to C_*\)。
+\end{theorem}
 
-一阶时，第 \(j\) 个距离为 \(s\lceil j/2\rceil\)，基线为 \(sj/2\)。两个格点集的偏差行之差的绝对值在奇数列为 \(1/2\)，在偶数列为 \(0\)。因此，对任意 \(k\)，一阶 \(L_\infty\) 距离均为 \(1/2\)，联合二阶结论随之成立。取 \(k=1,2\) 时，均方根距离分别为 \(1/2\) 和 \(1/(2\sqrt2)\)。
+\begin{proof}
+取共同的误差常数 \(E\) 和起始半径 \(R_0\)，使式 \eqref{eq:count} 的误差绝对值在 \(R\ge R_0\) 时至多为 \(ER^{d-1}\)。基元有限，因此可以让两常数同时适用于所有 \(p\)。令 \(T=(k/A_0)^{1/d}\)，则 \(A_0T^d=k\)。取固定的 \(L>0\) 满足 \(dA_0L>E\)。当 \(T\to\infty\) 时，二项展开给出
+\[
+A_0(T\pm L)^d-k=\pm dA_0L\,T^{d-1}+o(T^{d-1}),
+\qquad (T\pm L)^{d-1}/T^{d-1}\longrightarrow1.
+\]
+因此 \(T\) 足够大时，\(N_p(T-L)\) 的上界小于 \(k\)，而 \(N_p(T+L)\) 的下界至少为 \(k\)。排序与计数的等价关系即使有重数也成立，故 \(T-L<a_p(h,k)\le T+L\)。增大误差常数可以覆盖此前有限个 \(k\)。代入 \(A_0\) 并对各基元点求平均，得到式 \eqref{eq:limit}。进一步除以 \((h!k)^{1/d}\)，有界误差在归一化后趋于零。
 \end{proof}
 
-若筛选阈值取 \(0.533\)，九列联合距离会淘汰这对点集，但十列联合距离达到阈值要求。这给出了文献 \cite{higher} 的引理 5.8 中前缀比较失效的实例。
+这证明了文献 \cite{wkhigher} 的猜想 5.5 在其母定理采用的有限胞体积、满秩条件下的结论。\(h=1\) 时与原有点堆积系数一致。固定 \(n,h\) 后，\(C_*\) 随 \(\rho^{-1/n}\) 缩放，具有长度量纲。有界加性误差可以持续振荡。例如 \(\Z\) 的一阶得分为 \(\lceil k/2\rceil\)，相对于 \(k/2\) 的偏差在奇偶位置分别为 \(1/2\) 和零。拟合系数也趋于 \(C_*\)。将 \(\bar x_j=C_*\beta_j+O(1)\) 代入式 \eqref{eq:fit}，得到 \(|c_S(k)-C_*|\le C\sum_{j\le k}\beta_j/\sum_{j\le k}\beta_j^2=O(k^{-1/d})\)，其中最后一步由幂函数的积分比较给出。这个速率约束拟合系数，乘回 \(\beta_j\) 后，靠后位置的拟合与固定基线之差仍可能是常数量级。
 
-\section{由短前缀得到的下界}\label{sec:screening}
+\subsection{二阶范数球的椭球截面}
+
+一阶时 \(V_{n,1}=\omega_n\)。二阶时设两个位移为 \(x,y\)，单位球条件为 \(\|x\|+\|y\|+\|x-y\|\le3\)。固定 \(x\)，记 \(r=\|x\|\)。当 \(r<3/2\) 时，\(y\) 到焦点 \(0,x\) 的距离之和至多为 \(3-r\)。允许区域是长半轴为 \((3-r)/2\)、短半轴为 \(\sqrt{9-6r}/2\) 的旋转椭球。长半轴可从焦点所在直线读出，短半轴可从中垂面得出。附录~\ref{app:ellipse} 验证整个截面。\(r>3/2\) 时截面为空，边界 \(r=3/2\) 对积分无贡献。一维时对应一个区间。
+
+对 \(x\) 作径向积分，半径为 \(r\) 的球壳体积元为 \(n\omega_n r^{n-1}\,dr\)。乘上截面体积便得
+\begin{equation}\label{eq:volume}
+\begin{aligned}
+V_{n,2}
+ &=\frac{n\omega_n^2}{2^n}
+ \int_0^{3/2}r^{n-1}(3-r)(9-6r)^{(n-1)/2}\,dr\\
+ &=n\omega_n^2(9/4)^n
+ \Beta\bigl(n,(n+1)/2\bigr)\frac{2n+1}{3n+1}.
+\end{aligned}
+\end{equation}
+第二式换元 \(r=3u/2\)，其中 \(\Beta(a,b)=\int_0^1u^{a-1}(1-u)^{b-1}\,du\)。积分中的 \(1-u/2\) 给出因子 \(1-\tfrac12 n/(n+(n+1)/2)=(2n+1)/(3n+1)\)。在一、二、三维，二阶体积依次为 \(27/4,\ 27\pi^2/14,\ 567\pi^2/160\)。对应的一阶体积为 \(2,\pi,4\pi/3\)。这六组解析值经式 \eqref{eq:limit} 得到数值比较所用的理论基线。
+
+\section{重新拟合使前缀筛选失效}\label{sec:counter}
+
+设最终比较要求长度 \(K\) 的距离不超过 \(\tau\)。只有当长度 \(k\le K\) 下算出的量确实是最终距离的下界，才能在它超过 \(\tau\) 时提前排除候选。文献 \cite{wkhigher} 的引理 5.8 用较短的单阶 \(g\le h\) 距离为较长的联合 \(h\) 阶距离提供下界。式 \eqref{eq:fit} 却表明，加入一列后基线会重新估计，旧列的偏差也随之改变。因此，短偏差行与长偏差行的前几列可能不同。
+
+\begin{theorem}\label{thm:failure}
+对 \(\Z\) 和 \(2\Z\)，按文献 \cite{wkhigher} 的原基线和定义 5.7 的 \(L_\infty\) 行代价所得的联合二阶距离满足
+\begin{equation}\label{eq:threshold}
+D_{10}\le533/1000<D_9 .
+\end{equation}
+仅比较一阶时，采用原文的固定基线，以均方根为行代价的 EMD 从 \(k=1\) 时的 \(1/2\) 降为 \(k=2\) 时的 \(1/(2\sqrt2)\)。
+\end{theorem}
+
+\begin{proof}
+对一条直线上的三个点，按位置排序后两条相邻距离之和等于总跨度。故 \(s\Z\) 中整数跨度为 \(\ell\) 的三点组得分为 \(2s\ell/3\)。当 \(\ell\ge2\) 时，若中心 \(0\) 是左端点，内部点有 \(\ell-1\) 种选择。中心在右端点也有 \(\ell-1\) 种。若中心在内部，左端点可取 \(-1,\ldots,-(\ell-1)\)，右端点由跨度唯一确定。因此跨度为 \(\ell\) 的点组有 \(3(\ell-1)\) 个，累计为 \(3\ell(\ell-1)/2\) 个。对 \(s=1\)，前十个得分依次是 \((4/3,4/3,4/3,2,2,2,2,2,2,8/3)\)。把格点间隔放大到 \(s=2\) 时，每个得分加倍。
+
+每个点集只有一个加权行，故运输只能把质量一放在这对行上。把 \(\beta_j=\sqrt{2j}\) 中的 \(\sqrt2\) 吸入系数，得
+\begin{equation}\label{eq:refit}
+b_k=\frac{\sum_{j=1}^k a_j\sqrt j}{\sum_{j=1}^k j},
+\qquad R_k=\max_{j\le k}|a_j-b_k\sqrt j|.
+\end{equation}
+此处 \(a_j=a_0(2,j)\) 是 \(\Z\) 的二阶得分。\(2\Z\) 的拟合基线与偏差分别是 \(\Z\) 的两倍，\(R_k\) 因此就是二阶运输距离。附录~\ref{app:certificate} 用有理数证明 \(R_9>0.533\)、\(R_{10}\le0.533\)。表~\ref{tab:refit} 给出了两次拟合的所有基线和偏差。两个斜率分别约为 \(\SlopeNine\) 和 \(\SlopeTen\)。两个长度的最大偏差均出现在第一列，斜率增大使该列的正偏差减小。
+
+一阶时 \(s\Z\) 的第 \(j\) 项为 \(s\lceil j/2\rceil\)，基线为 \(sj/2\)。两行偏差之差的绝对值在奇数列为 \(1/2\)，在偶数列为零，因此 \(L_\infty\) 始终为 \(1/2\)。由 \(D_k=\max(1/2,R_k)\) 得到式 \eqref{eq:threshold}。均方根的两个值则来自在已有坐标 \(1/2\) 后加入零坐标，同时切换为 \(1/\sqrt2\) 的归一化比例。该下降在固定基线下发生。
+\end{proof}
+
+\begin{table}[htbp]
+\centering\small
+\caption{\(\Z\) 的二阶拟合基线及有符号偏差 \(e_j=a_j-\text{基线}\)。保留六位小数。\(2\Z\) 除下标外各对应数值均加倍。严格的阈值比较由有理数证书给出。}\label{tab:refit}
+\begin{tabular}{rrrrrr}
+\toprule
+ & & \multicolumn{2}{c}{\(k=9\)} & \multicolumn{2}{c}{\(k=10\)}\\
+\(j\)&\(a_j\)&基线&\(e_j\)&基线&\(e_j\)\\
+\midrule
+\RefitRows
+\bottomrule
+\end{tabular}
+\end{table}
+
+联合距离保留九位小数时，\(D_9\approx\RefitNine\)，\(D_{10}\approx\RefitTen\)。以 \(0.533\) 为阈值，九列会提前排除这对点集，十列则会保留。二阶的失效来自重新拟合。一阶例子单独说明均方根归一化也能使距离下降。这两种机制给出了修正筛选规则时要处理的条件。
+
+\section{有保证的前缀筛选下界}\label{sec:screening}
+
+\subsection{固定基线与均方根的长度修正}
+
+所谓固定基线，是指第 \(j\) 列的基线在计算不同前缀时按同一规则给出。它可以因结构而异。定理~\ref{thm:limit} 给出一种可用选择，即每个结构取 \(C_*\beta_j\)。由于基线不随前缀长度重新估计，截断长偏差行会恢复此前的短偏差行。
 
 \begin{theorem}\label{thm:fixed}
-设各结构使用固定的基线序列，增加行长度时该序列的已有项保持一致。对 \(1\le k\le K\)，记以 \(L_q\) 为行代价的 EMD 为 \(D_{q,k}\)，以均方根为行代价的 EMD 为 \(D_{\mathrm{RMS},k}\)。则
-\begin{equation}\label{eq:prefix}
-D_{q,k}\le D_{q,K}\quad(1\le q\le\infty),\qquad
-D_{\mathrm{RMS},K}\ge\sqrt{k/K}\,D_{\mathrm{RMS},k}.
+两有限加权行分布使用固定基线，且不同前缀的行权重一致。记以 \(L_q\) 为行代价的 EMD 为 \(D_{q,k}\)，以 RMS 为行代价的 EMD 为 \(D_{\RMS,k}\)。对 \(1\le k\le K\) 和 \(1\le q\le\infty\)，
+\begin{equation}\label{eq:fixed}
+D_{q,k}\le D_{q,K},\qquad
+\sqrt{k/K}\,D_{\RMS,k}\le D_{\RMS,K}.
 \end{equation}
-在任意固定的阶数集合上取最大值后，同样的不等式仍成立。
+在固定的阶数集合上取最大值，两式仍成立。
 \end{theorem}
 
 \begin{proof}
-两个前缀长度使用相同的行索引和权重，因此每个耦合均适用于二者。对任意一对偏差行，截断其差向量至多会减小未归一化的 \(L_q\) 范数。当 \(q=2\) 时，除以 \(\sqrt K\) 得到均方根界中的比例因子。对耦合取最小值，即得式 \eqref{eq:prefix}。在固定的阶数集合上取最大值保持各不等式。
+任一对长行的坐标差在前 \(k\) 项就是短行差。若 \(q\) 有限，增加坐标只会给 \(q\) 次幂的和增加非负项。若 \(q=\infty\)，增加参与比较的项只可能维持或增大最大值。对每对行的比较乘上非负耦合质量再求和，不等式仍成立。两种长度共享可行耦合集合。用使长代价最小的耦合计算短代价，就能把行代价不等式传递到两个最小值。对 \(q=2\) 的结论除以 \(\sqrt K\)，得到均方根修正。对固定的同一阶数集合取最大值也保持不等式，且均方根的修正比例对各阶相同。
 \end{proof}
 
-例如，各结构可用式 \eqref{eq:constant} 中的 \(C_*\) 生成基线序列 \((C_*\beta_j)_{j\ge1}\)。若短前缀给出的下界已超过长度 \(K\) 对应的阈值，定理~\ref{thm:fixed} 允许直接筛除该对结构。
+定理~\ref{thm:failure} 的一阶例子在 \(k=1\) 时为 \(1/2\)。若目标长度 \(K=2\)，合法的下界为 \(\sqrt{1/2}\,(1/2)\)，而长距离恰好等于此值。直接使用短 RMS 值会高估长距离。同时，若某个单阶包含在联合距离取最大值的阶数集合内，在该阶适用的下界也可以用于联合筛选。
 
-\begin{theorem}\label{thm:squared}
-在每个长度下均使用式 \eqref{eq:fit} 中的最小二乘系数。记两个结构的原始行之差为 \(e_{pr}=(x_{p,j}-y_{r,j})_{j=1}^{k}\)。若预测向量和原始行在共享的前缀上各自一致，且行权重固定，则运输代价
-\begin{equation}\label{eq:squared}
-W_{2,k}^2=\min_{\pi}\mathbb E_\pi
-\big\|e_{pr}-(c_S(k)-c_Q(k))\beta\big\|_2^2
+\subsection{与重新拟合相容的平方欧氏运输}
+
+如果需要继续随长度拟合基线，可以选用与最小二乘目标相容的代价。设两结构的原始行分别为 \(x_p,y_r\)，其差为 \(e_{pr}=x_p-y_r\)，定义拟合后分布的平方欧氏运输代价
+\begin{equation}\label{eq:sq}
+W_{2,k}^2=\min_{\pi\in\Pi(w,v)}\E_\pi
+\bigl\|e_{pr}-(c_S(k)-c_Q(k))\beta\bigr\|_2^2 .
 \end{equation}
-随 \(k\) 单调不减。
+下述结论适用于公共前缀一致的非零预测向量，包括式 \eqref{eq:fit} 的情形。
+
+\begin{theorem}\label{thm:sq}
+假定原始行和预测向量在共享前缀上各自一致，且权重固定。对每个长度分别作最小二乘拟合，则 \(k\le K\) 时 \(W_{2,k}^2\le W_{2,K}^2\)。
 \end{theorem}
 
 \begin{proof}
-对每个耦合 \(\pi\)，由其边缘权重可知 \(\mathbb E_\pi e_{pr}=\bar x-\bar y\)。在 \(t\in\mathbb R\) 中，令 \(\mathbb E_\pi\|e_{pr}-t\beta\|_2^2\) 最小的标量为 \(\langle\bar x-\bar y,\beta\rangle/\|\beta\|_2^2=c_S(k)-c_Q(k)\)。对任意给定的 \(t\) 和耦合，从 \(k\) 增至 \(K\ge k\) 只会加入非负的平方误差。对 \(t\) 和同一个耦合集合取最小值，仍保留此不等式。
+固定耦合 \(\pi\)。对 \(e_{pr}\) 求加权平均，利用耦合的行和与列和得到 \(\bar x-\bar y\)。因此，\(\E_\pi\|e_{pr}-t\beta\|_2^2\) 关于 \(t\) 的一次项系数为 \(-2\langle\bar x-\bar y,\beta\rangle\)，二次项系数为 \(\|\beta\|_2^2>0\)。极小点是 \(c_S(k)-c_Q(k)\)，与选择哪个可行耦合无关。式 \eqref{eq:sq} 因而等于对 \((\pi,t)\) 的联合最小值。对每个固定的 \((\pi,t)\)，从 \(k\) 扩展到 \(K\) 只加入新坐标的非负平方误差，长目标至少等于短目标的最小值。再取长目标的最小值即得。
 \end{proof}
 
-式 \eqref{eq:squared} 先对平方代价取耦合平均。文献 \cite{higher} 定义 5.7 中的均方根 EMD 则先计算每一行的代价 \(\|z\|_2/\sqrt{k}\)，再求耦合平均。
+两侧开方后也得到 \(W_2\) 的单调性。\(W_2^2\) 的阈值以长度平方为量纲，而 \(W_2\)、\(L_q\) 和均方根运输距离的量纲为长度。把 \(W_2\) 阈值平方可以得到对应的平方运输阈值。均方根 EMD 的阈值需要按本身的比较准则设定。
+
+\begin{table}[htbp]
+\small\centering
+\caption{不同前缀筛选方法的比较。计算代价一栏说明所需的信息与运输问题，未对实际运行时间作排序。}\label{tab:methods}
+\begin{tabularx}{\linewidth}{p{.24\linewidth}p{.13\linewidth}p{.21\linewidth}Y}
+\toprule
+目标代价与基线 & 是否重拟合 & 严格下界 & 使用和计算条件\\
+\midrule
+原 PDA 加 \(L_\infty\) 或 RMS & 高阶重拟合 & 一般无保证 & 保留原描述符。若无另外证明的下界，需要完整计算才能作排除决定。\\
+固定基线加 \(L_q\) & 否 & \(D_{q,k}\) & 保留行范数，基线由理论系数或事先约定的规则给出。\\
+固定基线加 RMS & 否 & \(\sqrt{k/K}D_{\RMS,k}\) & 保留均方根约定。\(k\) 远小于 \(K\) 时，下界会变弱。\\
+重拟合加平方欧氏代价 & 是 & \(W_{2,k}^2\) & 在短前缀上拟合并求运输。需使用该代价及其对应的阈值。\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{阈值搜索流程}
+
+先确定目标长度 \(K\) 的代价和阈值 \(\tau\)，再比较候选。记 \(B_k\) 为表~\ref{tab:methods} 中与所选目标相匹配的短前缀下界。若排序实现支持增量计算，未被排除的候选可复用已算出的原始得分。伪代码如下。
+
+\begin{quote}\small
+输入查询结构 \(S\)、候选集合、阶数 \(h\)、长度 \(k,K\)、目标代价和阈值 \(\tau\)。\\
+对每个候选 \(Q\)，计算前 \(k\) 列原始得分和对应的 \(B_k\)。\\
+若 \(B_k>\tau\)，排除 \(Q\) 并记录下界。\\
+否则计算 \(K\) 列下的目标距离。\\
+返回目标距离不超过 \(\tau\) 的候选。
+\end{quote}
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.89\linewidth]{workflow-zh.pdf}
+\caption{给定长前缀目标代价时的筛选流程。提前排除所用下界与目标阈值必须采用同一代价尺度。}\label{fig:workflow}
+\end{figure}
+
+当最终判据允许等号时，\(B_k=\tau\) 的候选仍须进入后续比较。如果某个短前缀不能确定结果，也可在多个逐渐增加的长度上计算合法下界。这样做的实际收益需要结合候选分布和排序实现衡量。
 
 \section{扰动稳定性}\label{sec:stability}
 
+\subsection{从坐标匹配到排序得分界}
+
+形如 \(D\le L\varepsilon\) 的 Lipschitz 型估计表示，描述符变化受到原子位移幅度的线性控制。考虑两点集具有共同的满秩平移晶格，并存在与晶格平移交换的双射 \(f\)，满足 \(\|f(p)-p\|_2\le\varepsilon\)。它在基元行之间诱导一个等权匹配。后面的有限分布定理只要求存在满足逐列误差界的耦合。共同晶格与双射提供一种实现这种耦合的几何条件。
+
+由逆三角不等式，任意两点 \(u,v\) 的距离变化满足
+\[
+\bigl|\|u-v\|_2-\|f(u)-f(v)\|_2\bigr|
+\le\|f(u)-u\|_2+\|f(v)-v\|_2\le2\varepsilon.
+\]
+对点组所有边求平均，变化仍至多为 \(2\varepsilon\)。位移双射也在两边的合规点组之间给出双射。把原先最小的 \(j\) 个点组送到新结构，它们的得分均不超过原第 \(j\) 小得分加 \(2\varepsilon\)，所以新第 \(j\) 小得分也不超过同一上界。应用逆双射得到另一侧不等式，进而控制匹配原始行的每一列。文献 \cite{wkhigher} 定理 4.3 在其扰动条件下给出原始 PDD 的 RMS 运输界 \(2\varepsilon\)，以及 \(L_q\) 运输界 \(2\varepsilon k^{1/q}\)，其中 \(k^{1/\infty}=1\)。
+
+\subsection{投影如何控制拟合偏差}
+
+文献 \cite{wkhigher} 的推论 5.9 考察扣除基线后的分布。一阶时共同密度使两条固定基线相同，相减时抵消，故可沿用原始 PDD 界。更高阶时，原文给出拟合系数差的界，并陈述 RMS 界 \(4\varepsilon\) 与 \(L_q\) 界 \(4\varepsilon k^{1/q}\)。对于最小二乘拟合，基线差可以看成平均误差在预测直线上的正交投影。图~\ref{fig:projection} 的右图给出二维示意。
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.94\linewidth]{projection-zh.pdf}
+\caption{二乘二运输实例和欧氏正交投影示意。左图三条箭头分别运输 \(1/2,1/4,1/4\) 的质量。右图中，平均误差扣除投影后的残差与预测直线正交。}\label{fig:projection}
+\end{figure}
+
 \begin{theorem}\label{thm:stability}
-采用式 \eqref{eq:fit} 的系数。若两个原始行分布存在一个耦合，使其支集上的所有 \(|e_{pr,j}|\le2\varepsilon\)（\(j\le k\)），那么拟合后 PDA 行的均方根 EMD 至多为 \(2\varepsilon\)。
+设 \(k\ge1\)，两个结构使用同一非零向量 \(\beta\) 作最小二乘拟合。如果两个原始行分布存在一个可行耦合，使支集上的所有行对均满足 \(|e_{pr,j}|\le2\varepsilon\)（\(j\le k\)），则拟合后以 RMS 为行代价的 EMD 至多为 \(2\varepsilon\)。
 \end{theorem}
 
 \begin{proof}
-固定满足条件的耦合。设 \(P_\beta\) 为到 \(\beta\) 所张成直线的正交投影，且 \(\bar e=\mathbb E_\pi e_{pr}\)。两条拟合基线之差为 \(P_\beta\bar e\)。展开平方并利用投影恒等式，得到
-\begin{equation}\label{eq:projection}
-\mathbb E_\pi\|e_{pr}-P_\beta\bar e\|_2^2
-=\mathbb E_\pi\|e_{pr}\|_2^2-\|P_\beta\bar e\|_2^2
-\le 4k\varepsilon^2 .
+固定一个满足条件的耦合，令 \(\bar e=\E_\pi e_{pr}=\bar x-\bar y\)，第二个等号由边缘权重给出。到 \(\beta\) 所张成直线的投影为 \(P_\beta\bar e=\langle\bar e,\beta\rangle\beta/\|\beta\|_2^2\)，恰等于两条拟合基线之差。把扣除基线后的平方误差按耦合平均，得到
+\begin{equation}\label{eq:proj}
+\begin{aligned}
+\E_\pi\|e_{pr}-P_\beta\bar e\|_2^2
+&=\E_\pi\|e_{pr}\|_2^2-2\langle\bar e,P_\beta\bar e\rangle
++\|P_\beta\bar e\|_2^2\\
+&=\E_\pi\|e_{pr}\|_2^2-\|P_\beta\bar e\|_2^2
+\le4k\varepsilon^2 .
+\end{aligned}
 \end{equation}
-由柯西--施瓦茨不等式，该耦合的期望均方根代价至多为 \(2\varepsilon\)。对耦合取最小值可得同样的上界。
+第二个等号用到了 \(\bar e-P_\beta\bar e\) 与 \(P_\beta\bar e\) 的正交性。不等式来自支集上的逐列误差界和总质量一。对概率权重使用柯西--施瓦茨不等式，得到 \(\E_\pi\|e_{pr}-P_\beta\bar e\|_2\le\sqrt{\E_\pi\|e_{pr}-P_\beta\bar e\|_2^2}\)。除以 \(\sqrt k\) 可知该耦合的期望均方根代价至多为 \(2\varepsilon\)，所有耦合中的最小值也满足同一界。
 \end{proof}
 
-考虑一个双射的周期位移，每个点至多移动 \(\varepsilon\)，且它把基元行按相同权重一一配对。在此配对下，每个点组中的成对距离至多改变 \(2\varepsilon\)，其平均距离也满足同一界。原来最小的 \(j\) 个得分配对后都不超过原来的第 \(j\) 小得分加 \(2\varepsilon\)。反向配对给出另一侧不等式。因此，配对后的相同名次得分相差至多 \(2\varepsilon\)。对这类周期扰动，上述定理把文献 \cite{higher} 推论 5.9(c) 的均方根上界由 \(4\varepsilon\) 改进到 \(2\varepsilon\)。
-
-该推论的证明在逐坐标估计时使用乘子 \(\gamma_k\beta_k\)，其中 \(\gamma_k=\sum_{j=1}^k\beta_j/\sum_{j=1}^k\beta_j^2\)。当 \(k\ge2\) 时，
+原推论的逐坐标推导使用了 \(\gamma_k\beta_j\le1\)，其中 \(\gamma_k=\sum_j\beta_j/\sum_j\beta_j^2\)。采用式 \eqref{eq:fit} 的预测向量时，若 \(k\ge2\)，最后一列满足
 \begin{equation}\label{eq:multiplier}
-\gamma_k\beta_k-1=
-\frac{\sum_{j=1}^k\beta_j(\beta_k-\beta_j)}
-{\sum_{j=1}^k\beta_j^2}>0 .
+\gamma_k\beta_k-1
+=\frac{\sum_{j=1}^k\beta_j(\beta_k-\beta_j)}{\sum_{j=1}^k\beta_j^2}>0 .
 \end{equation}
-严格正性来自 \(\beta_j\) 严格递增。式 \eqref{eq:projection} 中的耦合平均可直接导出改进后的均方根界。
+和式各项非负，且首项为正。由平均误差的逐列界仍可推出 \(|c_S(k)-c_Q(k)|\le2\varepsilon\gamma_k\)。再用三角不等式，可得给定耦合下通用的 \(L_q\) 界 \(2\varepsilon(k^{1/q}+\gamma_k\|\beta\|_q)\)。式 \eqref{eq:multiplier} 核查的是原推导中的一个步骤。定理~\ref{thm:stability} 用耦合下的平方平均独立证明 RMS 改进。几何扰动中的最优常数仍待确定，而且本文未使用上确界估计推导结构新颖性的阈值。
 
-\section{形式化验证与应用范围}\label{sec:verification}
+\section{数值实验与筛选实例}\label{sec:experiments}
 
-配套的 Lean~4 工程验证了格点计数和排序界、格点反例及其有理数证书、前缀不等式和均方根扰动界。极限定理在工程中记作 \verb|conjecture55_limit|。基元平均的加性误差在 \verb|crystal_average_bounded_error| 中验证。Lean 中的常数用格坐标表示。乘积坐标变换使体积乘以 \(|U|^h\)，因此可得到物理坐标下的式 \eqref{eq:constant}。
+各实验使用具有指定晶格基底的确定性合成点集。程序保存到第 \(4096\) 位的全部得分、邻点搜索半径、拟合值及阈值判定。计算没有随机抽样。一维扰动点坐标、排序跨度和短前缀证书采用有理数运算。较高维的欧氏范数和拟合系数使用双精度。数值例子用于展示已证明定理在具体输入上的表现。
 
-数值证书见 \texttt{ScreeningCertificate.lean}。前缀界与扰动界见 \texttt{Screening.lean}、\texttt{FittedStability.lean} 和 \texttt{Perturbations.lean}。
+\subsection{六种维数与阶数组合}
 
-工程在 Lean~4.28.0 和 Mathlib 提交
-\texttt{8f9d9cff6bd728b17a24e163c9402775d9e6a365} 下通过了 \verb|lake build --wfail|。对 20 条定理的公理审计仅报告了 Lean 的标准公理 \texttt{propext}、\texttt{Classical.choice} 和 \texttt{Quot.sound}。
+在 \(\Z^n\)（\(n=1,2,3\)）上分别枚举一阶和二阶点组。搜索半径记为 \(R_{\mathrm{enum}}\)。遗漏的组至少含一个范数大于该半径的位移，按式 \eqref{eq:radial} 其得分严格大于 \(2R_{\mathrm{enum}}/(h+1)\)。每次运行都检查最后一个保留得分低于该界，正裕量见 \code{data/cutoffs.csv}。因此，考虑欧氏范数计算的舍入精度后，枚举窗口覆盖了所需排序前缀。一维得分还与解析公式独立核对。
 
-在晶体几何比较中，极限公式解释了高排序位置上点密度对得分的主导作用。当基线和代价满足定理~\ref{thm:fixed} 的条件，或重新拟合时采用式 \eqref{eq:squared} 的代价，短前缀即可用于判定部分结构对是否必然超过长前缀的给定阈值。这些结论适用于无标签周期点集的几何比较，可在晶体数据库的筛选流程中检验。
+\begin{table}[htbp]
+\centering\small
+\caption{单位密度格点在 \(k=4096\) 时的体积和得分。归一化为 \(a/\beta_k\)，加性误差为 \(a-C_*\beta_k\)。数据保留六位小数。}\label{tab:volnum}
+\begin{tabular}{rrrrrrr}
+\toprule
+\(n\)&\(h\)&\(V_{n,h}\)&\(C_*\)&\(a\)&\(a/\beta_k\)&加性误差\\
+\midrule
+\VolumeRows
+\bottomrule
+\end{tabular}
+\end{table}
 
-\begin{thebibliography}{9}
-\bibitem{pdd}
-D.~Widdowson and V.~Kurlin, Pointwise distance distributions for detecting near-duplicates in large materials databases, \emph{SIAM Journal on Applied Mathematics} \textbf{86} (2026), no.~3, 898--918.
-\href{https://doi.org/10.1137/25M1736657}{doi:10.1137/25M1736657}。
+\begin{figure}[htbp]
+\centering\includegraphics[width=\linewidth]{asymptotic-zh.pdf}
+\caption{\(n=1,2,3\)、\(h=1,2\) 的归一化得分与加性误差。上排除以理论主项 \(C_*\beta_k\)，参考值为一。下排保留误差的长度量纲，可以出现振荡。}\label{fig:asym}
+\end{figure}
 
-\bibitem{higher}
-D.~Widdowson and V.~Kurlin, Higher-order, generically complete, continuous, and polynomial-time invariants of crystalline materials, \emph{Computational and Applied Mathematics} \textbf{46} (2027), article 67. 2026 年 10 月 5 日在线发表。
-\href{https://doi.org/10.1007/s40314-026-03905-z}{doi:10.1007/s40314-026-03905-z}。
-\end{thebibliography}
+图~\ref{fig:asym} 分别展示两种误差。一维一阶误差总是在零与 \(1/2\) 之间交替。一维二阶时，同一跨度 \(\ell\) 的最后一个名次与第一个名次对应不同的误差子序列，极限分别为 \(1/3\) 和 \(1\)，推导见附录~\ref{app:line}。这给出了两个归一化得分收敛、加性误差有界但不收敛的明确实例。
 
+\subsection{相同密度下的有限排序差异}
+
+二维方格 \(\Z^2\) 和矩形格 \((2\Z)\times(\tfrac12\Z)\) 的基本胞面积均为一。矩形格的前两个距离为 \(1/2,1/2\)，方格则为 \(1,1\)。二阶排序在有限位置上也出现差异。图~\ref{fig:density} 将原始得分与共同的理论主项作比较。另取密度为 \(1/4\) 的 \(2\Z^2\) 作为缩放对照，各坐标放大两倍会使得分和理论系数一同加倍。因此相同密度有助于隔离局部几何变化，而不同密度的对照能展示主项的尺度变化。
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.94\linewidth]{density-zh.pdf}
+\caption{二维一阶和二阶原始得分。方格与矩形格共用单位密度的理论主项。放大后的方格密度更低，距离的长度尺度更大。}\label{fig:density}
+\end{figure}
+
+\subsection{筛选距离与候选计数}
+
+计算一维二阶单行例子的第 1 列到第 64 列，可以看到，逐长度重拟合后的联合上确界距离会出现上升和下降。图~\ref{fig:screening} 标出了 \(k=9\) 与 \(k=10\) 的阈值逆转。固定基线上确界及重拟合平方运输在这一范围单调不减。固定基线 RMS 应按 \(\sqrt k\) 缩放后比较，此时与单调的 \(L_2\) 运输量一致。
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=\linewidth]{screening-zh.pdf}
+\caption{\(\Z\) 与 \(2\Z\) 的筛选代价。左图是原联合一、二阶上确界距离，标出阈值逆转。中图为二阶固定基线的上确界距离，右图为二阶重拟合平方运输。三个纵轴采用各自的代价尺度。}\label{fig:screening}
+\end{figure}
+
+为演示阈值流程，以 \(\Z\) 为查询，在 \(s\in[1/2,2]\) 上等间隔取 \(61\) 个候选 \(s\Z\)，阶数为二，短、长长度分别为 \(8,48\)。拟合系数随尺度 \(s\) 线性改变，因而长度型代价按 \(|1-s|\) 缩放，平方代价按 \(|1-s|^2\) 缩放。对每种代价设置自己的阈值，将短下界给出的决定与穷举长序列所得的决定比较，结果见表~\ref{tab:scan}。这是缩放格点单行族上的流程演示，候选计数不能表示实际晶体数据库的运行时间。
+
+\begin{table}[htbp]
+\centering\small
+\caption{缩放整数格点的合成阈值搜索。误删指短前缀排除、但长前缀完整距离符合阈值的候选。}\label{tab:scan}
+\begin{tabular}{lrrrrrrr}
+\toprule
+代价 & 候选数 & \(k\)&\(K\)&\(\tau\)&短前缀排除&完整接受&误删\\
+\midrule
+\ScreenRows
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{交替位移下的均方根估计}
+
+把 \(\Z\) 中的第 \(j\) 个点移动到 \(j+(-1)^j\varepsilon\)，其中 \(j\in\Z\)，\(0\le\varepsilon\le0.24\)。点的次序保持一致，按 \(j\) 进行配对与长度二的平移交换。取两点基元，每行权重 \(1/2\)。原点集的两行相同，拟合后也相同，所以对任意可行耦合，运输代价一致。实验用有理数枚举两种阶数 \(h=1,2\)、三个前缀 \(k=4,12,24\) 和九个位移幅度。程序分别检查遗漏得分的下界、匹配原始坐标的逐列误差以及拟合后的 RMS 估计。
+
+\begin{table}[htbp]
+\centering
+\caption{扰动格点在 \(h=2,k=12\) 时的均方根运输结果。最后一列是拟合后分布的理论上界。}\label{tab:pert}
+\begin{tabular}{rrrr}
+\toprule
+\(\varepsilon\)&原始 PDD&拟合后 PDA&\(2\varepsilon\)\\
+\midrule
+\RMSExample
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.83\linewidth]{perturbation-zh.pdf}
+\caption{二阶交替位移实例的 RMS 运输代价、原界 \(4\varepsilon\) 与改进界 \(2\varepsilon\)。确定性样例用于比较量级，未搜索最不利扰动。}\label{fig:pert}
+\end{figure}
+
+\FloatBarrier
+\section{Lean 4 形式化验证与复现}\label{sec:lean}
+
+Lean 通过内核检查数学命题和证明项 \cite{lean4}。配套工程采用 Lean~4.28.0，Mathlib 提交为 \texttt{8f9d9cff6bd728b17a24e163c9402775d9e6a365}。本次在无项目构建产物的副本中重新运行 \verb|lake build --wfail|，使用锁定的本地依赖及其缓存。构建报告 3117 个任务。另在 Lake 环境中重新检查 \verb|PDDLimit/Audit.lean|。20 条被审计的命题只使用 \texttt{propext}、\texttt{Classical.choice}、\texttt{Quot.sound}。表~\ref{tab:lean} 对应正文与 Lean 模块，配套报告列出完整定理名与实测日志。
+
+\begin{table}[htbp]
+\small\centering
+\caption{主要数学结论及其形式化覆盖范围。确切文件名、定理名和假设见验证报告。}\label{tab:lean}
+\begin{tabularx}{\linewidth}{p{.23\linewidth}YY}
+\toprule
+正文结果 & 模块与 Lean 命题 & 检验覆盖范围\\
+\midrule
+定理~\ref{thm:limit} & \code{Collisions} 与 \code{BoundedError} 的极限及有界误差 & 实可逆格坐标模型。极限取 \(h\ge2\)，有界误差允许 \(h\ge1\)。体积用格坐标表示。\\
+定理~\ref{thm:failure} & \code{ScreeningCertificate} 的重拟合与 RMS 反例 & 无限整数格点及有理不等式。检验了单行地面代价与运输的对应。\\
+定理~\ref{thm:fixed} & \code{Screening} 的固定基线 \(L_q\)、上确界与 RMS & 共享可行耦合集合的有限加权行，以及最大值下界。\\
+定理~\ref{thm:sq} & \code{FittedStability} 的重拟合平方运输 & 有限行、公共预测前缀、非零短预测向量以及可实现的概率边缘权重。\\
+定理~\ref{thm:stability} & \code{FittedStability} 的拟合后 RMS 界 & 要求存在满足逐坐标界的耦合。\code{Perturbations} 检验边长平均和排序变化。\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+形式化使用格坐标。以 \(B_{\rm coord}\) 记在每个位移上施加格基底映射之后定义的单位球。乘积映射 \(A^h\) 把 \(d\) 维体积乘以 \(|U|^h\)，故 \(m^h\vol_d(B_{\rm coord})=\rho^h V_{n,h}\)，与物理坐标的表达式一致。椭球截面体积式 \eqref{eq:volume}、拟合系数速率、数值数组和材料学解释由手写推导或可复现计算支持，超出本工程公理审计的命题范围。从周期几何配对得到加权行耦合的过程见第~\ref{sec:stability} 节。
+
+\section{讨论}\label{sec:discussion}
+
+高阶渐近公式把高排序位置的密度效应与有限排序位置的结构差异联系起来。体积因子来源于乘积空间中的点组。在维数和阶数确定后，对晶体整体缩放只会按长度单位改变极限系数。显式系数能够作为固定基线的理论依据。短序列上的拟合也有其用途，它能随观测位置调整，但可能吸收部分局部差异，且不同长度拟合出的偏差行未必彼此相容。
+
+本文在有限胞体积条件下补足原论文的高阶极限，并明确了一个有限的加性误差。反例修正了对引理 5.8 的前缀筛选解释。两种修正继续使用原始排序得分，但各自规定了基线、前缀长度和运输代价怎样配合。更紧的均方根稳定性界建立在匹配模型之上。逐坐标推导中的乘子问题与 RMS 界的改进需要分别判断。
+
+对晶体结构检索，扰动上界可用于解释小幅几何移动所产生的描述符差异。筛选下界可针对既定的长序列比较规则，证明某些候选能够提前排除。晶体数据库去重、近重复检索和几何新颖性排序是潜在应用。高通量结构搜索和机器学习也可考虑使用这类描述符或扣除密度背景后的残差。上述应用的检索效果、预测能力和计算收益仍需真实材料数据评估。本文使用的合成实例只检验定理在小型可控几何输入上的表现。
+
+无标签满秩模型便于定义有限基元及权重。元素种类、占位率与实际化学等价需要明确的描述符扩展。缺陷及无序结构可能破坏周期性或点对点匹配。三维空间中具有二维平移周期的晶体提示可按平移秩重新建立体积缩放规律，目前的密度式 \eqref{eq:crystal} 使用环境空间的满秩条件。高阶时邻点子集数增长较快，体积计数本身没有给出适用于任意基元的高效枚举器。本文显式求得一阶和二阶体积，更高阶仍有积分与误差控制问题。有限序列也可能出现描述符碰撞，因此几何匹配无法单独确定真实材料的全部性质。
+
+后续可以研究 \(h\ge3\) 的截面公式和带误差保证的数值积分，发展支持元素标签与低秩周期性的得分，分析允许缺陷或部分配对的扰动，并在真实晶体数据库上测量阈值、前缀和候选规模对计算时间的影响。自适应前缀策略和晶体机器学习描述符可在这些实验基础上评价。几何上可实现的匹配扰动中，常数 \(2\varepsilon\) 是否最优也是独立的问题。
+
+\section{结论}\label{sec:conclusion}
+
+本文通过乘积空间中的范数球计数、重合排除和带界反演，证明了晶体高阶逐点距离分布的归一化极限，并得到显式密度系数与有界加性误差。二阶系数由椭球截面解析计算。整数格点的有理数证书说明，逐长度拟合可以破坏原有筛选不等式。固定基线及 RMS 长度修正，或与拟合相容的平方欧氏代价，提供了可用的前缀下界。对给定配对条件下的扰动，正交投影证明了 \(2\varepsilon\) 的拟合 RMS 上界。Lean 工程在报告列出的模型中验证主要数学命题。材料化学标签、更一般的几何扰动和真实数据库效率仍需进一步研究。
+
+\paragraph{数据、代码与 AI 协作}
+本文的合成数据、程序和可复现图表随稿提供。Codex 参与数学推导、Lean 实现、数值脚本以及中英文起草。验证报告记录了可供核对的证据与所覆盖的范围。
+
+\appendix
+\section{椭球截面的计算}\label{app:ellipse}
+
+把焦点中点作为坐标原点，设 \(y\) 的轴向坐标为 \(z\)，横向向量为 \(v\)。令 \(a=(3-r)/2\)、\(c=r/2\)，以及 \(b^2=a^2-c^2>0\)。固定 \(z\) 时，两焦点距离之和随 \(\|v\|\) 增大。对 \(|z|\le a\)，把 \(\|v\|^2=b^2(1-z^2/a^2)\) 代入焦点距离平方 \((z\pm c)^2+\|v\|^2\)，得到 \((a\pm cz/a)^2\)。两个平方根均非负，且和为 \(2a\)。若 \(|z|>a\)，即使 \(v=0\)，焦点距离之和也大于 \(2a\)。所以截面是半轴为 \(a,b,\ldots,b\) 的椭球。将欧氏单位球按这些半轴缩放，得到体积 \(\omega_n ab^{n-1}\)。\(n=1\) 时截面为区间 \([-a,a]\)。三个维数对应的 Beta 积分可直接算得 \(1,4/15,1/12\)。
+
+\section{重拟合筛选阈值的有理数证书}\label{app:certificate}
+
+取
+\[
+\begin{aligned}
+(u_1,\ldots,u_{10})={}&(1000000,1414213,1732050,2000000,2236067,\\
+&2449489,2645751,2828427,3000000,3162277).
+\end{aligned}
+\]
+对每个 \(j\)，由 \(u_j^2\le10^{12}j\le(u_j+1)^2\)，得到 \(L_j=u_j/10^6\le\sqrt j\le U_j=(u_j+1)/10^6\)。各 \(a_j\) 为正，所以逐项代入式 \eqref{eq:refit} 得 \(b_9\in[0.796618,0.796620]\) 和 \(b_{10}\in[0.805101,0.805102]\)，其中所有小数均作为精确有理数使用。\(k=9\) 时，\(4/3-b_9\ge4/3-0.796620>533/1000\)。\(k=10\) 时，每个 \(a_j\) 常值段内的 \(a_j-b_{10}\sqrt j\) 单调下降，只需核查端点 \(j=1,3,4,9,10\)。各端点有
+\[
+a_j-0.805102 U_j\le a_j-b_{10}\sqrt j\le a_j-0.805101 L_j.
+\]
+用有理数核对五组端点，左右界都落在 \([-533/1000,533/1000]\) 中。
+脚本 \code{scripts/experiment.py} 复验了这一步。根号的上下界保存在 CSV 中。因此，定理~\ref{thm:failure} 的严格判断不依赖小数的显示精度。
+
+\section{整数格点的两列边界名次}\label{app:line}
+
+在 \(\Z\) 的二阶例子中，跨度 \(\ell\) 对应最后一个名次 \(k_\ell=3\ell(\ell-1)/2\)。取 \(C_*=2/\sqrt{27}\)，该位置的主项为 \((2/3)\sqrt{\ell(\ell-1)}\)。有理化后，\(\ell-\sqrt{\ell(\ell-1)}=\ell/(\ell+\sqrt{\ell(\ell-1)})\to1/2\)，所以加性误差趋于 \(1/3\)。同一跨度的第一个名次是 \(k_{\ell-1}+1\)。在乘 \(2/3\) 之前，相应差值为 \(\ell-\sqrt{(\ell-1)(\ell-2)+2/3}\)。有理化后令分子分母同除以 \(\ell\)，可得极限 \(3/2\)，所以此处加性误差趋于 \(1\)。
+
+\bibliographystyle{unsrt}
+\bibliography{references}
 \end{document}

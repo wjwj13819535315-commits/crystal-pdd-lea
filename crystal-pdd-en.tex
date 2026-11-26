@@ -1,208 +1,514 @@
-% Compile twice with XeLaTeX to resolve cross-references.
+% Build from this directory with latexmk -xelatex or Tectonic.
 \documentclass[11pt,a4paper]{article}
-\usepackage[margin=25mm]{geometry}
-\usepackage{amsmath,amssymb,amsthm,booktabs}
-\usepackage[hidelinks]{hyperref}
-\setlength{\emergencystretch}{3em}
+\input{preamble.tex}
 \newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}
-\title{Asymptotic and screening bounds for higher-order crystal distance distributions}
-\author{}
+\title{Higher-order crystal distance distributions: asymptotics, screening bounds, and perturbation stability}
+\author{Wang Jian\thanks{Corresponding author.}}
 \date{}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-Higher-order pointwise distance distributions encode a periodic crystal by ranked scores of local point configurations. For the mean pairwise distance score of Widdowson and Kurlin, we prove that the rank-\(k\) score in dimension \(n\) and order \(h\) equals an explicit multiple of \((h!k)^{1/(nh)}\) up to a bounded additive error. This proves their Conjecture 5.5 and identifies the limiting coefficient using only the point density and the volume of a norm ball determined by \(n\) and \(h\). We give an exact counterexample to prefix screening for their refitted deviations using the integer lattices \(\mathbb Z\) and \(2\mathbb Z\). Fixed baselines restore screening with unnormalized row costs, and squared Euclidean transport restores it even when the baseline is refitted. A coupling argument improves the root-mean-square perturbation bound to \(2\varepsilon\) for displacements of at most \(\varepsilon\). The main results and the finite certificates have been checked in Lean~4.
+Comparing crystal structures requires descriptors that do not change when the same atomic arrangement is described in a different cell. Higher-order pointwise distance distributions retain ranked distances from local configurations, and their deviation distributions subtract a density-dependent background. The asymptotic coefficient of the higher-order score and the validity of screening on short deviation prefixes require separate analysis. We count lattice points in a norm ball on a product space, remove coincident entries, and invert the counting law. This proves the higher-order limit conjecture of Widdowson and Kurlin for full-rank unlabelled periodic point sets and gives a bounded additive error at each motif site. For order two, an ellipsoidal section formula evaluates the leading coefficient in every dimension. The lattices \(\Z\) and \(2\Z\) give a rationally certified failure of short-prefix screening after refitting. Two valid lower bounds follow from fixing the baseline or from minimizing squared Euclidean transport with refitting. An orthogonal-projection argument gives a \(2\varepsilon\) bound for fitted RMS transport under a weight-preserving matched displacement of size \(\varepsilon\). Deterministic lattice examples illustrate the estimates, and Lean~4 checks the principal counting, screening, and stability results. These bounds identify when a short comparison can safely rule out candidates in a geometric crystal search.
 \end{abstract}
 
-\noindent\textbf{Keywords.} Periodic point sets, pointwise distance distribution, lattice point counting, optimal transport, formal verification.
+\noindent\textbf{Keywords.} Periodic point set, pointwise distance distribution, lattice-point counting, optimal transport, crystal screening, formal verification.
 
-\section{Introduction}
+\section{Introduction}\label{sec:intro}
 
-Crystal databases can store the same periodic geometry using different unit cells and motif representatives. Pointwise distance distributions (PDDs) use distances from motif sites to describe the infinite point set in a way suited to geometric comparison \cite{pdd}. Widdowson and Kurlin \cite{higher} extend this construction from individual neighbours to groups of neighbours. Their Conjecture 5.5 asks whether the average ranked score for order \(h\) has a limit after the proposed normalization. Their Lemma 5.8 also proposes using short prefixes of deviations from a fitted baseline to rule out distant structures.
+Crystal structure influences the connectivity and symmetry that underlie material properties. Diamond and graphite, for instance, are both carbon, but their atomic arrangements differ. An entry in a crystal database records a choice of cell, origin, axes, and representative sites. Two such descriptions can represent the same infinite arrangement. Refined coordinates, thermal motion, relaxation, and rounding can also produce small differences between representations of closely related structures. In a high-throughput search it is useful to compare the geometry consistently before interpreting chemical identity or material properties \cite{wkpdd,wkhigher}.
 
-We first prove the limit with an explicit coefficient and a bounded additive error at every motif site. We then examine screening under the transport convention of \cite{higher}. The fit changes with the prefix length, which permits a distance decrease even for the simplest one-dimensional lattices. We identify two sufficient ways to retain a lower bound from a short prefix and derive an improved perturbation estimate for the original root-mean-square cost. The setting throughout is unlabelled full-rank periodic point sets in Euclidean space.
+Cell parameters summarize translation lengths and angles and provide a practical first check for comparable cells. Changes of basis and supercells can change those parameters while leaving the arrangement intact. Space groups constrain symmetry, but structures with the same space group can differ in lattice parameters and atomic coordinates. Experimental atomic pair distribution functions use total-scattering information to study interatomic separations and local order \cite{billinge}. Their radial aggregation pools information across sites. A pointwise distance distribution (PDD) instead retains a weighted list of sorted distance rows, one for each distinct local environment represented in the motif. These two uses of pair distances answer different experimental and geometric questions.
 
-\section{Scores and transport}\label{sec:setup}
+Even pointwise radial rows can coincide for non-isometric periodic structures. Example~2.5 of \cite{wkhigher} gives such a pair. The higher-order construction records the mean of \emph{all} pairwise distances within a selected group, adding distances among neighbours themselves. Large ranks also reflect the number of distant configurations available per unit volume. To expose finite-rank differences, the pointwise deviation distribution (PDA), called pointwise deviation from asymptotic in \cite{wkhigher}, subtracts a background curve. Short rows are attractive for screening if a lower bound on their distance can exclude a candidate before longer rows have been computed.
 
-Write \(S=\Lambda+M\subset\mathbb R^n\), where \(\Lambda\) is a full-rank lattice and \(M\) consists of \(m\ge1\) distinct representatives modulo \(\Lambda\). A fundamental cell \(U\) has volume \(|U|\), and \(\rho=m/|U|\) is the point density. Fix the order \(h\ge1\) and put \(d=nh\).
+Problem~1.2 of \cite{wkhigher} asks for strength on generic sets, reconstruction, Lipschitz continuity, and polynomial-time computability. Their Theorem~4.3 bounds raw PDD changes under coordinate perturbations. Their Theorem~5.1 gives the order-one limit and bounds on higher-order growth. Conjecture~5.5 asks whether the normalized higher-order average converges. Lemma~5.8 asserts a short-prefix lower bound for PDA, including after the fit and the RMS normalization. Corollary~5.9 extends stability estimates to PDA. We address these asymptotic, screening, and stability questions within the models below. Completeness and algorithmic performance on materials databases are separate questions.
 
-\begin{definition}\label{def:score}
-For \(p\in M\), choose an unordered set of \(h\) distinct points of \(S\setminus\{p\}\). If \(y_i\) are their displacements from \(p\) and \(y_0=0\), its score is
-\begin{equation}\label{eq:score}
-G(y)=\frac{2}{h(h+1)}\sum_{0\le i<j\le h}\|y_i-y_j\|_2 .
+The contributions are an explicit limit with a sitewise bounded remainder, an analytical evaluation of the second-order norm-ball volume, an exact counterexample to the claimed prefix inequality, two justified substitutes for screening, and a tighter RMS estimate under stated matching assumptions. The numerical section gives reproducible lattice instances, and the verification section identifies which statements were formalized.
+
+\section{Periodic structures, distance ranks, and transport}\label{sec:setup}
+
+\subsection{Cells and motifs}
+
+Let \(n\ge1\) and let \(A:\R^n\to\R^n\) be an invertible linear map. The full-rank lattice \(\Lambda=A\Z^n\) specifies the translations. A half-open cell \(U=A[0,1)^n\) contains one representative of each orbit of the translation action on \(\R^n\). The motif \(M\subset U\) lists the representative sites of a periodic structure, and the complete set is
+\begin{equation}\label{eq:crystal}
+S=\Lambda+M,\qquad m=|M|\ge1,\qquad
+\rho=\frac{m}{|U|},\qquad |U|=|\det A|.
 \end{equation}
-Let \(a_p(h,j)\) be the \(j\)-th smallest score, counting equal scores of different sets with multiplicity. Put \(a(h,j)=m^{-1}\sum_{p\in M}a_p(h,j)\).
-\end{definition}
+For example, a one-dimensional motif \(\{0,1,2\}\) repeated every four units gives \(\{0,1,2\}+4\Z\). In two dimensions \(\Z^2\) has translation vectors \((1,0),(0,1)\). Replacing the second by \((1,1)\) gives a skew cell for the same square point set (Fig.~\ref{fig:geometry}). In three dimensions \(\Z^3\) represents a simple cubic site arrangement. Definition~1.1 of \cite{wkhigher} also allows \(l<n\) translation directions. The finite volume \(|U|\) in \eqref{eq:crystal} requires full rank.
 
-The single-order PDD \(\operatorname{PDD}^{\{h\}}(S;k)\) gives weight \(1/m\) to each row \(x_p=(a_p(h,j))_{j=1}^{k}\). Equal rows may be merged by adding their weights. Define \(\beta_j=(h!j)^{1/d}\) and write \(\beta=(\beta_j)_{j=1}^{k}\). The single-order pointwise deviation distribution (PDA) uses the rows \(x_p-c_S(k)\beta\). For \(h\ge2\), Definition 5.6 of \cite{higher} gives the least-squares coefficient
-\begin{equation}\label{eq:fit}
-c_S(k)=\frac{\langle\bar x,\beta\rangle}{\|\beta\|_2^2},
-\qquad
-\bar x=\frac{1}{m}\sum_{p\in M}x_p .
-\end{equation}
-At \(h=1\), the original convention uses the fixed coefficient \((\rho\,\operatorname{vol}_n B_{n,1})^{-1/n}\). Here \(B_{n,1}\) is the Euclidean unit ball.
+\begin{figure}[htbp]
+\centering\includegraphics[width=.94\linewidth]{geometry-en.pdf}
+\caption{Schematic representations of periodic point sets. The left panel marks one motif of \(\{0,1,2\}+4\Z\). The centre and right panels show two cells for the same square lattice. Shaded or outlined cells specify the translations and selected representatives.}\label{fig:geometry}
+\end{figure}
 
-For finite weighted row distributions, a coupling is a nonnegative matrix \(\pi=(\pi_{pr})\) whose row and column sums are the prescribed weights. The earth mover's distance (EMD) is the minimum expected ground cost over couplings, where \(\mathbb E_\pi f=\sum_{p,r}\pi_{pr}f(p,r)\). We use \(L_q\) for the unnormalized \(\ell_q\) norm, including \(q=\infty\), and \(\mathrm{RMS}(z)=\|z\|_2/\sqrt{k}\) for a \(k\)-column row. The joint distance through order \(h\) is the maximum of the single-order EMDs as in Definition 5.7 of \cite{higher}. We may use indexed motif rows throughout. Any coupling of merged rows can be split between the original rows in proportion to their weights, with the same value of the cost.
+An isometry has the form \(x\mapsto Hx+t\) with \(H\) orthogonal. A geometric invariant takes the same value after such a transformation. Distances also ignore changes of cell that represent the same infinite set. A representative moved by a lattice translation sees exactly the same environment. A supercell duplicates orbit representatives in equal proportions. More generally, two full-rank cell lattices of a given set can be compared through a common finite-index sublattice. Indeed, the group of all periods is discrete because \(S\) is locally finite, and contains both cell lattices with finite index. The weighted row distribution and density agree after duplication in the common cell. The model treats sites as unlabelled points. Site occupancies, chemical species, and bond energetics require additional data.
 
-\section{The higher-order limit}\label{sec:limit}
+\subsection{Building order-one and higher-order rows}
 
-\begin{theorem}\label{thm:limit}
-Set \(B_{n,h}=\{y\in(\mathbb R^n)^h:G(y)\le1\}\) and \(V_{n,h}=\operatorname{vol}_d(B_{n,h})\). For
-\begin{equation}\label{eq:constant}
-C_*=(\rho^h V_{n,h})^{-1/d},
-\end{equation}
-one has
-\begin{equation}\label{eq:limit}
-a_p(h,k)=C_*(h!k)^{1/d}+O(1),
-\qquad
-a(h,k)=C_*(h!k)^{1/d}+O(1).
-\end{equation}
-The first error bound holds uniformly over \(p\in M\). In particular, the normalized motif average tends to \(C_*\).
-\end{theorem}
-
-\begin{proof}
-The function \(G\) is a norm. Absolute homogeneity and the triangle inequality follow from the Euclidean norm. The terms with \(i=0\) imply that \(G(y)=0\) forces each \(y_j=0\). Its unit ball is compact with nonempty interior, and its radius-\(R\) ball is \(RB_{n,h}\), of volume \(V_{n,h}R^d\). In particular, the score lists are locally finite.
-
-For a fixed \(p\), the ordered displacement tuples before imposing distinctness form \((S-p)^h\), a union of \(m^h\) distinct cosets of \(\Lambda^h\). In each coset, place a fundamental cell of \(\Lambda^h\) at every site, using the same cell containing \(0\) with bounded \(G\)-radius \(D\). For \(R>D\), the union of the cells anchored in \(RB_{n,h}\) lies inside \((R+D)B_{n,h}\) and covers \((R-D)B_{n,h}\), by the triangle inequality. The cells have volume \(|U|^h\) and disjoint interiors. Consequently, the count summed over all cosets is
-\begin{equation}\label{eq:ordered}
-\rho^h V_{n,h}R^d+O(R^{d-1}).
-\end{equation}
-
-A tuple excluded by the requirements in Definition~\ref{def:score} has \(y_i=0\) or \(y_i=y_j\) for some distinct \(i,j\). In either case, at most \(h-1\) displacements are free. Each lies in a Euclidean ball of radius \(h(h+1)R/2\), since its distance to \(0\) contributes to \(G\). Such a ball contains \(O(R^n)\) points of \(S-p\) by the same cell bound for the Euclidean norm. The excluded count is \(O(R^{n(h-1)})\), which is \(O(R^{d-1})\). Every remaining unordered set occurs in \(h!\) orders. The number \(N_p(R)\) of scores up to \(R\) therefore satisfies
-\begin{equation}\label{eq:count}
-N_p(R)=AR^d+O(R^{d-1}),\qquad A=\rho^h V_{n,h}/h!.
-\end{equation}
-
-Let \(T=(k/A)^{1/d}\) and choose an error constant \(E\) in \eqref{eq:count} that works for every site in \(M\). Choose \(L>0\) with \(dAL>E\). For sufficiently large \(T\), the lower estimate for \(N_p(T+L)\) is at least \(k\) and the upper estimate for \(N_p(T-L)\) is strictly below \(k\). Indeed the increments of \(AR^d\) at \(T\pm L\) are \(\pm dAL\,T^{d-1}+o(T^{d-1})\), while \((T\pm L)^{d-1}/T^{d-1}\) tends to \(1\). Thus \(T-L<a_p(h,k)\le T+L\). Enlarge the additive bound to cover the finitely many remaining indices and average over \(M\) to obtain \eqref{eq:limit}.
-\end{proof}
-
-For \(h=1\), the ball in \eqref{eq:constant} is Euclidean. For \(h\ge2\), the result proves Conjecture 5.5 in \cite{higher}. The coefficient depends on the point density alone once \(n\) and \(h\) are fixed. Variations among structures with the same density may still affect the finite-rank scores.
-
-\section{A counterexample for refitted deviations}\label{sec:counterexample}
-
-\begin{theorem}\label{thm:counterexample}
-For \(S=\mathbb Z\) and \(Q=2\mathbb Z\), let \(D_k\) be the joint order-two PDA distance with \(L_\infty\) ground costs and the baseline of \cite{higher}. Then \(D_{10}\le 533/1000<D_9\). At order one, the EMD with RMS ground cost also decreases from \(k=1\) to \(k=2\).
-\end{theorem}
-
-\begin{proof}
-For the lattice \(s\mathbb Z\), \(s>0\), the triangle formed by the centre \(0\) and two neighbours has score \(2s\ell/3\), where \(\ell\) is the span of the three integer indices. At span \(\ell\ge2\) there are \(\ell-1\) choices when \(0\) is the left endpoint, the same number when it is the right endpoint, and \(\ell-1\) choices when it lies strictly between the endpoints. The cumulative count through span \(\ell\) is \(3\ell(\ell-1)/2\). The first ten order-two scores for \(s=1\) are
-\begin{equation}\label{eq:firstten}
-(a_1,\ldots,a_{10})=(4/3,4/3,4/3,2,2,2,2,2,2,8/3).
-\end{equation}
-Scaling by \(s\) multiplies the raw scores and the fitted coefficient by \(s\). Each lattice has a single motif row, so the only coupling has mass one. With \(\sqrt{2}\) absorbed into the coefficient, the order-two \(L_\infty\) distance between \(\mathbb Z\) and \(2\mathbb Z\) is
-\begin{equation}\label{eq:distance}
-\max_{1\le j\le k}|a_j-b_k\sqrt j|,
-\qquad b_k=\frac{\sum_{j=1}^k a_j\sqrt j}{\sum_{j=1}^k j}.
-\end{equation}
+Definition~2.3 of \cite{wkhigher} assigns to each \(p\in M\) the \(k\) smallest distances to sites in \(S\setminus\{p\}\). The sorted entries record distances with multiplicity. Place the rows in a matrix with weight \(1/m\) per row. When rows coincide, replace them by one row with the total weight. For the one-dimensional motif above at \(k=4\), the construction is explicit (Table~\ref{tab:pdd}). Centre \(0\) sees neighbours \(1,-2,2,-3\) at distances \(1,2,2,3\). Centre \(1\) sees \(0,2,-2,4\) at \(1,1,3,3\). Reflection about \(1\) exchanges centres \(0\) and \(2\).
 
 \begin{table}[htbp]
 \centering
-\caption{Rational bounds for the fitted coefficient and the order-two distance.}\label{tab:certificate}
-\begin{tabular}{@{}cll@{}}
+\caption{Order-one PDD construction for \(\{0,1,2\}+4\Z\) at \(k=4\). The first and third rows merge.}\label{tab:pdd}
+\begin{tabular}{ccc}
 \toprule
-\(k\) & Bounds on \(b_k\) & Bound on the order-two distance \\
+Centre & Four distances & Initial weight\\
 \midrule
-9 & \([0.796618,0.796620]\) & \(>0.533\) \\
-10 & \([0.805101,0.805102]\) & \(\le0.533\) \\
+\(0\) & \((1,2,2,3)\) & \(1/3\)\\
+\(1\) & \((1,1,3,3)\) & \(1/3\)\\
+\(2\) & \((1,2,2,3)\) & \(1/3\)\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Each entry of the vector of integers below brackets \(\sqrt j\) from below after division by \(10^6\). Increasing it by one before division gives the upper bound. Both inequalities follow by squaring.
-\begin{equation}\label{eq:rootcert}
+With weight preceding the row, the merged result is \(\bigl(\begin{smallmatrix}2/3&1&2&2&3\\1/3&1&1&3&3\end{smallmatrix}\bigr)\). For \(\Z^2\), the four axial neighbours are at distance \(1\), followed by four diagonal neighbours at distance \(\sqrt 2\). The six-column distribution has one row \((1,1,1,1,\sqrt 2,\sqrt 2)\) of weight one. Cell invariance follows from the representative argument above, and isometry invariance follows because an isometry bijects neighbours and preserves their distances. Radial rows omit the arrangement of neighbours on each sphere, so one can lose angular information even when the row computation is exact.
+
+\begin{definition}\label{def:score}
+Choose the centre \(p\in S\) and \(h\) distinct neighbours in \(S\setminus\{p\}\) as an unordered set. Denote their displacements by \(y=(y_1,\ldots,y_h)\) and put \(y_0=0\). The score is
+\begin{equation}\label{eq:score}
+G(y)=\frac{2}{h(h+1)}\sum_{0\le i<j\le h}\|y_i-y_j\|_2 .
+\end{equation}
+Write \(a_p(h,j)\) for the \(j\)-th ranked score, with ties retained for distinct sets, and \(a(h,j)=m^{-1}\sum_{p\in M}a_p(h,j)\). The distribution \(\PDD^{\{h\}}(S;k)\) assigns weight \(1/m\) to \(x_p=(a_p(h,j))_{j=1}^k\) and permits merging identical rows.
+\end{definition}
+
+The normalization divides the sum by \(\binom{h+1}{2}\), the number of pairwise distances in a group of \(h+1\) points. At \(h=1\) the score is the nearest-neighbour quantity above. At \(h=2\), taking the two planar unit vectors as neighbours gives \((2+\sqrt2)/3\). At \(h=3\), the three mutually perpendicular unit vectors give \((3+3\sqrt2)/6=(1+\sqrt2)/2\). Collinear or coplanar tuples remain admissible if their sites are distinct. Figure~\ref{fig:orders} depicts the edge sets. The order \(h\) counts neighbours \emph{per group}. The prefix length \(k\) counts how many different groups contribute scores. The ten lowest scores at order two in \(\Z\), for example, include triangles involving points beyond the two nearest neighbours. Even which group comes first can depend on neighbour-to-neighbour distances.
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.94\linewidth]{orders-en.pdf}
+\caption{Schematic local configurations at orders one, two, and three. The square marks the centre and the edges are the distances averaged in the score. The right panel is a projection of the three-dimensional example.}\label{fig:orders}
+\end{figure}
+
+We use \(\PDD^{\{h\}}\) for one order and \(\PDD^{(h)}\) for concatenation over orders \(1,\ldots,h\), following Definition~3.1 of \cite{wkhigher}. A joint distance below means the maximum of distances computed separately for each order. A transport plan for a concatenated row would instead use a common pairing across orders.
+
+\subsection{Density, scale, and baselines}
+
+The grid \(\Z\) has about \(2R\) points within distance \(R\) of the origin. The corresponding count on \(2\Z\) is about \(R\). In two dimensions area replaces interval length, and in three dimensions volume replaces area. At fixed density, a large region contains roughly its volume times the density because full cells in its interior each contain \(m\) sites. The cells near its boundary generate a smaller correction. The product space for \(h\) neighbours has dimension \(d=nh\). Scaling all its coordinates by \(R\) multiplies volume by \(R^d\). A norm measures the size of a vector and its unit ball is the set of vectors of size at most one. The norm ball used here is a counting region in the product space.
+
+To remove a leading trend, fix \(\beta_j=(h!j)^{1/d}\) and \(\beta=(\beta_1,\ldots,\beta_k)\). Definition~5.6 of \cite{wkhigher} subtracts the same fitted baseline \(c_S(k)\beta\) from each row when \(h\ge2\). Put \(\bar x=m^{-1}\sum_p x_p\). Minimizing the squared difference between \(\bar x\) and \(t\beta\) gives
+\begin{equation}\label{eq:fit}
+c_S(k)=\frac{\langle\bar x,\beta\rangle}{\|\beta\|_2^2},
+\qquad
+\PDA^{\{h\}}(S;k):\ p\longmapsto x_p-c_S(k)\beta .
+\end{equation}
+The derivative of \(\|\bar x-t\beta\|_2^2\) is \(2t\|\beta\|_2^2-2\langle\bar x,\beta\rangle\), and its quadratic coefficient is positive. The fitted slope is the length scale attached to the predictor on the chosen prefix. Both sums change with \(k\), so an earlier residual can change when a new column is added. At \(h=1\) the original convention uses the fixed point packing coefficient \(\PPC(S)=(\rho\,\omega_n)^{-1/n}\), where \(\omega_n\) is the volume of the Euclidean unit ball. A fixed baseline can also be used at higher orders once the coefficient in Theorem~\ref{thm:limit} is available. Figure~\ref{fig:fit} shows the fitted lines and residuals from the example in Section~\ref{sec:counter}.
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.94\linewidth]{baselines-en.pdf}
+\caption{Computed second-order scores of \(\Z\) and fitted baselines (left), with the signed deviations (right). The two fits use \(k=9\) and \(k=10\). Their residual curves already differ at the first index.}\label{fig:fit}
+\end{figure}
+
+\subsection{Couplings and the choice of cost}
+
+Think of the weight on a distance row as a pile of material to distribute among the rows of a second crystal. A coupling \(\pi=(\pi_{pr})\) specifies how much moves from each row \(p\) to each row \(r\). Its nonnegative entries have row and column sums equal to the prescribed weights \(w_p,v_r\), which are called its marginals. The set \(\Pi(w,v)\) of such matrices is nonempty, since it includes \(\pi_{pr}=w_pv_r\), and compact. The earth mover's distance (EMD) in Definition~4.1 of \cite{wkhigher} minimizes the expected ground cost
+\begin{equation}\label{eq:emd}
+\EMD_c(X,Y)=\min_{\pi\in\Pi(w,v)}\E_\pi[c(x_p,y_r)],
+\qquad \E_\pi f=\sum_{p,r}\pi_{pr}f(p,r).
+\end{equation}
+Identical rows can be merged for computation. Conversely, a coupling of merged rows can be split in proportion to the original weights, with unchanged cost. Therefore the labelled row index sets and weights can be retained when relating two prefix lengths.
+
+For \(z\in\R^k\), \(L_q(z)=(\sum_j |z_j|^q)^{1/q}\) for \(1\le q<\infty\), \(L_\infty(z)=\max_j|z_j|\), and \(\RMS(z)=\|z\|_2/\sqrt k\). The \(L_2\) cost is Euclidean. At fixed \(k\) the RMS row cost divides that same length by \(\sqrt k\). Squaring lengths and then minimizing their average gives \(W_2^2\), the square of the second Wasserstein metric on Euclidean row distributions \cite{transport}. Taking the root \emph{after} the transport average gives \(W_2\). The paper's RMS-based EMD instead averages \(\|z\|_2/\sqrt k\) across the coupling. EMD with a ground metric is a metric on the row distributions. Its pullback to structures that can share a descriptor can be a pseudometric. Squared Euclidean transport is a cost. For singleton rows at \(0,1,2\), the squared distance from \(0\) to \(2\) is \(4>1+1\).
+
+For a worked transport example, take source positions \(0,3\) with weights \(3/4,1/4\), and target positions \(1,4\) with weights \(1/2,1/2\). The first entry \(t\) determines the feasible plan:
+\begin{equation}\label{eq:toytransport}
+\pi=
+\begin{pmatrix}t&3/4-t\\1/2-t&t-1/4\end{pmatrix},
+\qquad 1/4\le t\le1/2 .
+\end{equation}
+The absolute-distance matrix is \(\bigl(\begin{smallmatrix}1&4\\2&1\end{smallmatrix}\bigr)\). Its expected cost is \(15/4-4t\), so the optimizer is \(t=1/2\), with cost \(7/4\). The squared cost is \(55/4-18t\), minimized at \(19/4\). Here \(W_2=\sqrt{19}/2\). The weights explain why the point at \(0\) must send some mass as far as \(4\). The first panel of Fig.~\ref{fig:projection} shows the optimal split.
+
+\section{The higher-order limit}\label{sec:limit}
+
+\subsection{From rank to a counting region}
+
+Fix a centre \(p\). Let \(N_p(R)\) be the number of admissible unordered groups with score at most \(R\). The statement \(a_p(h,k)\le R\) is equivalent to \(N_p(R)\ge k\). One can therefore estimate ranks by counting configurations in a growing region. We first allow all ordered displacements, including coincidences. Those tuples form a periodic set in \(\R^{nh}\). After estimating its count, we remove the tuples excluded by Definition~\ref{def:score} and account for their ordering.
+
+\begin{lemma}\label{lem:norm}
+The function \(G\) in \eqref{eq:score}, defined on all of \((\R^n)^h\) with \(y_0=0\), is a norm. In addition,
+\begin{equation}\label{eq:radial}
+G(y)\ge \frac{2}{h+1}\|y_i\|_2,\qquad 1\le i\le h.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+The sum has nonnegative terms. If it vanishes, the edges from \(0\) to each \(y_i\) vanish, so all displacements are zero. Multiplication of the tuple by a scalar multiplies every distance by its absolute value. For \(y,z\), each difference of entries in \(y+z\) is the sum of the differences in \(y\) and in \(z\), so the Euclidean triangle inequality for each edge gives \(G(y+z)\le G(y)+G(z)\). To obtain \eqref{eq:radial}, the sum contains the direct edge from \(0\) to \(y_i\). For each other noncentral \(y_j\), it also contains the two edges of the path \(0,y_j,y_i\) whose total length is at least \(\|y_i\|_2\). All edges just counted are disjoint as summands. The full sum is therefore at least \(h\|y_i\|_2\), giving the bound after normalization.
+\end{proof}
+
+The ball \(B_{n,h}=\{y:G(y)\le1\}\) is compact with nonempty interior since \(G\) is continuous and \eqref{eq:radial} bounds each displacement. Let \(V_{n,h}=\vol_d(B_{n,h})\), where \(d=nh\). A ball of radius \(R\) in this norm has volume \(R^d V_{n,h}\). The same radial bound also ensures each bounded score interval contains only finitely many groups.
+
+\subsection{Ordered counts and coincidences}
+
+Before excluding coincidences, the tuples belong to \((S-p)^h\), a disjoint union of \(m^h\) cosets of the product lattice \(\Lambda^h\). In each coset, attach a translate of a half-open fundamental cell of \(\Lambda^h\) to every anchor. Each cell has volume \(|U|^h\). There is a constant \(D\) bounding the \(G\)-norm of every displacement from its anchor within the cell. For anchors of norm at most \(R\), their union lies inside \((R+D)B_{n,h}\) by the triangle inequality. Conversely, any point of \((R-D)B_{n,h}\) lies in a coset cell whose anchor has norm at most \(R\). This argument works separately in each coset. Figure~\ref{fig:count} illustrates the containment in two dimensions.
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.82\linewidth]{counting-en.pdf}
+\caption{Schematic cell argument in two dimensions. The cells with anchors in the middle ball cover the inner ball and are contained in the outer ball. The drawn Euclidean balls illustrate the radial containment used for the product-space norm.}\label{fig:count}
+\end{figure}
+
+Since \(d\) is a positive integer, \((R\pm D)^d=R^d+O(R^{d-1})\) for fixed \(D\). Multiplying by \(m^h/|U|^h\) and bounding the ordered count between the two volumes gives
+\begin{equation}\label{eq:ordered}
+\#\bigl((S-p)^h\cap RB_{n,h}\bigr)=\rho^h V_{n,h}R^d+O(R^{d-1}).
+\end{equation}
+The boundary shell has thickness bounded independently of \(R\). This explains why it contributes at most a lower power of \(R\).
+
+A forbidden tuple has \(y_i=0\) or \(y_i=y_j\) for some distinct indices. Each such equality leaves at most \(h-1\) freely chosen displacements, and each has norm at most \((h+1)R/2\) by \eqref{eq:radial}. The cell argument for the Euclidean norm bounds the number of choices per free displacement by \(O(R^n)\). The union over the finitely many equality constraints is \(O(R^{n(h-1)})\), hence \(O(R^{d-1})\) for \(n\ge1\). The result includes \(h=1\), where the excluded tuple is the central point. Each allowed set has \(h!\) orderings with the same score. Thus
+\begin{equation}\label{eq:count}
+N_p(R)=A_0 R^d+O(R^{d-1}),\qquad A_0=\rho^h V_{n,h}/h! .
+\end{equation}
+
+\subsection{Inverting the count with a bounded error}
+
+\begin{theorem}\label{thm:limit}
+For an unlabelled full-rank periodic point set, every \(n,h\ge1\), and every motif site \(p\), the following estimates hold as \(k\to\infty\):
+\begin{equation}\label{eq:limit}
 \begin{aligned}
-(\ell_1,\ldots,\ell_{10})={}&(1000000,1414213,1732050,2000000,2236067,\\
-&2449489,2645751,2828427,3000000,3162277).
+C_*&=(\rho^h V_{n,h})^{-1/(nh)},\\
+a_p(h,k)&=C_*(h!k)^{1/(nh)}+O(1),\\
+a(h,k)&=C_*(h!k)^{1/(nh)}+O(1).
 \end{aligned}
 \end{equation}
-Substitution gives the coefficient intervals in Table~\ref{tab:certificate}. At \(k=9\), the first entry has absolute deviation at least \(4/3-0.796620>0.533\). At \(k=10\), the absolute deviations at \(j=1,3,4,9,10\) are at most \(0.533\), using the same rational bounds in \eqref{eq:distance}. These indices are the endpoints of the constant segments in \eqref{eq:firstten}. On each segment \(a_j-b_{10}\sqrt j\) is decreasing, so the endpoint checks bound every absolute deviation.
+The first additive error can be bounded uniformly over the sites of the given finite motif. In particular \(a(h,k)/(h!k)^{1/(nh)}\to C_*\).
+\end{theorem}
 
-At order one the rank-\(j\) distance is \(s\lceil j/2\rceil\), and the baseline is \(sj/2\). The two lattices differ in their centered rows by \(1/2\) in odd columns and \(0\) in even columns in absolute value. Their \(L_\infty\) distance is \(1/2\) for all \(k\), which establishes the joint claim. The RMS distances at \(k=1,2\) are \(1/2\) and \(1/(2\sqrt2)\).
+\begin{proof}
+Choose \(E\) and \(R_0\) so that the absolute error in \eqref{eq:count} is at most \(ER^{d-1}\) for \(R\ge R_0\) and every motif site. This is possible because there are finitely many sites. Put \(T=(k/A_0)^{1/d}\), so \(A_0T^d=k\), and choose a constant \(L>0\) with \(dA_0L>E\). For \(T\to\infty\), the binomial expansion gives
+\[
+A_0(T\pm L)^d-k=\pm dA_0L\,T^{d-1}+o(T^{d-1}),
+\qquad \frac{(T\pm L)^{d-1}}{T^{d-1}}\longrightarrow1 .
+\]
+Consequently the upper bound for \(N_p(T-L)\) is strictly below \(k\), and the lower bound for \(N_p(T+L)\) is at least \(k\), for all sufficiently large \(k\). The quantile characterization is valid even when many groups have equal scores and gives \(T-L<a_p(h,k)\le T+L\). Extend the bound to the finite set of earlier ranks by increasing the constant. Substituting \(A_0\) and averaging the sitewise estimates gives \eqref{eq:limit}. Dividing by \((h!k)^{1/d}\) makes the bounded error tend to zero on the normalized scale.
 \end{proof}
 
-A screening threshold of \(0.533\) would discard this pair using the nine-column joint distance, although its ten-column distance satisfies the threshold. The issue arises for the prefix comparison in Lemma 5.8 of \cite{higher}.
+This proves Conjecture~5.5 \cite{wkhigher} with the finite-volume full-rank convention of its parent asymptotic theorem. The \(h=1\) coefficient agrees with their point packing coefficient. For fixed \(n,h\), \(C_*\) varies as \(\rho^{-1/n}\), so it scales as a length. At \(h\ge2\) it uses a different unit ball. A bounded additive error need not vanish. For \(\Z\) and \(h=1\), \(a(1,k)=\lceil k/2\rceil\), which gives errors \(0\) and \(1/2\) on the two parities. The fitted slope \(c_S(k)\) also approaches \(C_*\). In fact \(\bar x_j=C_*\beta_j+O(1)\) in \eqref{eq:fit} gives \(|c_S(k)-C_*|\le C\sum_{j\le k}\beta_j/\sum_{j\le k}\beta_j^2=O(k^{-1/d})\), by integral bounds on the sums of powers. This is a statement about the coefficient. The difference in fitted and fixed baselines can remain of order one in late columns.
 
-\section{Lower bounds from short prefixes}\label{sec:screening}
+\subsection{Ellipsoidal sections at order two}
+
+For \(h=1\) the volume is \(\omega_n\). At \(h=2\) the formula is also explicit. Write the two displacements as \(x,y\). The unit-ball condition is \(\|x\|+\|y\|+\|x-y\|\le3\). For fixed \(x\) with \(r=\|x\|\le3/2\), the admissible \(y\) have sum of distances to the foci \(0,x\) at most \(3-r\). This is a prolate ellipsoid of longitudinal semiaxis \((3-r)/2\) and transverse semiaxes \(\sqrt{9-6r}/2\). One may obtain these semiaxes by considering points on the line of the foci and on its perpendicular bisector. Appendix~\ref{app:ellipse} verifies the full section. The sphere \(r=3/2\) has measure zero, and for \(r>3/2\) the section is empty. For \(n=1\) the section is an interval and there are zero transverse axes.
+
+Integrating its volume in \(x\) using radial shells of measure \(n\omega_n r^{n-1}\,dr\) gives
+\begin{equation}\label{eq:volume}
+\begin{aligned}
+V_{n,2}
+ &=\frac{n\omega_n^2}{2^n}\int_0^{3/2}
+ r^{n-1}(3-r)(9-6r)^{(n-1)/2}\,dr\\
+ &= n\omega_n^2(9/4)^n
+ \Beta\bigl(n,(n+1)/2\bigr)\frac{2n+1}{3n+1}.
+\end{aligned}
+\end{equation}
+In the second line \(r=3u/2\), and \(\Beta(a,b)=\int_0^1u^{a-1}(1-u)^{b-1}\,du\). The factor \(1-u/2\) in the integral contributes \(1-\tfrac12 n/(n+(n+1)/2)=(2n+1)/(3n+1)\). In dimensions one, two, and three this gives \(27/4,\ 27\pi^2/14,\ 567\pi^2/160\), respectively. The order-one volumes are \(2,\pi,4\pi/3\). Their use in \eqref{eq:limit} predicts all six reference curves below without fitting.
+
+\section{Prefix failure after refitting}\label{sec:counter}
+
+Consider a search with a cutoff \(\tau\) on the distance at length \(K\). If a short distance at length \(k\le K\) is a lower bound, rejecting pairs whose short distance exceeds \(\tau\) is valid. Lemma~5.8 of \cite{wkhigher} asserts this for a single short order \(g\le h\) compared with the joint order-\(h\) distance at the longer length. Equation~\eqref{eq:fit} identifies a difficulty. Appending one score can alter the fitted baseline in all the original columns. The long residual row then has a different short prefix.
+
+\begin{theorem}\label{thm:failure}
+With the original baselines and the joint order-two \(L_\infty\) distance of Definition~5.7 \cite{wkhigher}, the lattices \(\Z\) and \(2\Z\) satisfy
+\begin{equation}\label{eq:threshold}
+D_{10}\le 533/1000<D_9.
+\end{equation}
+With the original order-one baseline alone, the RMS-based EMD falls from \(1/2\) at \(k=1\) to \(1/(2\sqrt2)\) at \(k=2\).
+\end{theorem}
+
+\begin{proof}
+On the line, after sorting three sites their two shorter distances add up to the span. Thus the triangle score at lattice spacing \(s\) and integer span \(\ell\) is \(2s\ell/3\). For a fixed \(\ell\ge2\), if the centre \(0\) is the left endpoint then there are \(\ell-1\) locations for the interior site. The count is the same with centre \(0\) at the right endpoint. If it is in the interior, the left endpoint can be any of \(-1,\ldots,-(\ell-1)\), and the right endpoint is forced by the span. Hence there are \(3(\ell-1)\) groups of span \(\ell\), and the cumulative count is \(3\ell(\ell-1)/2\). At \(s=1\) this yields the first ten scores \((4/3,4/3,4/3,2,2,2,2,2,2,8/3)\). At \(s=2\) each score doubles.
+
+Each lattice has one row, so the transport puts weight one on their row pair. Absorbing the \(\sqrt2\) in \(\beta_j=\sqrt{2j}\) into the fit gives
+\begin{equation}\label{eq:refit}
+b_k=\frac{\sum_{j=1}^k a_j\sqrt j}{\sum_{j=1}^k j},
+\qquad
+R_k=\max_{j\le k}|a_j-b_k\sqrt j|.
+\end{equation}
+Here \(a_j=a_0(2,j)\) for \(\Z\), and the baseline and residual of \(2\Z\) are twice those of \(\Z\). Thus \(R_k\) is the order-two transport distance. The exact certificate in Appendix~\ref{app:certificate} proves \(R_9>0.533\) and \(R_{10}\le0.533\). Table~\ref{tab:refit} shows all residual entries for the two fits. In particular, \(b_9\) is about \(\SlopeNine\) and \(b_{10}\) is about \(\SlopeTen\). Both maxima occur in column one, whose positive residual falls when the slope increases.
+
+At order one \(s\Z\) has entry \(s\lceil j/2\rceil\) and fixed baseline \(sj/2\). The absolute difference of the two residual rows is \(1/2\) on odd columns and zero on even columns. Its supremum is \(1/2\) for every \(k\). Consequently \(D_k=\max(1/2,R_k)\) proves \eqref{eq:threshold}. The RMS cost has the stated two values since the second zero coordinate changes the normalization from \(1\) to \(1/\sqrt2\). This last decrease uses a fixed baseline.
+\end{proof}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Computed order-two baseline and signed residual \(e_j=a_j-\text{baseline}\) for \(\Z\). Values are rounded to six decimal places. For \(2\Z\) each table entry apart from the index doubles. The strict threshold decision uses the rational certificate.}\label{tab:refit}
+\begin{tabular}{rrrrrr}
+\toprule
+ & & \multicolumn{2}{c}{\(k=9\)} & \multicolumn{2}{c}{\(k=10\)}\\
+\(j\)&\(a_j\)&baseline&\(e_j\)&baseline&\(e_j\)\\
+\midrule
+\RefitRows
+\bottomrule
+\end{tabular}
+\end{table}
+
+The joint distances rounded to nine decimal places are \(D_9\approx\RefitNine\) and \(D_{10}\approx\RefitTen\). The failure at order two comes from refitting. The separate order-one example identifies an additional failure mechanism arising from RMS normalization. These examples isolate the conditions required by the screening rule.
+
+\section{Transport lower bounds for screening}\label{sec:screening}
+
+\subsection{Fixed prefixes and RMS rescaling}
+
+A baseline is fixed for screening when its value in column \(j\) is chosen independently of the row length. The value may depend on the structure. One option is the theoretical predictor \(C_*\beta_j\) from Theorem~\ref{thm:limit}. Fixing the coefficients means that truncation gives exactly the previously computed residuals.
 
 \begin{theorem}\label{thm:fixed}
-Suppose each structure uses a baseline sequence whose first \(k\) entries are the same whenever they are used in a longer row. For \(1\le k\le K\), let \(D_{q,k}\) denote EMD with \(L_q\) ground cost and let \(D_{\mathrm{RMS},k}\) denote EMD with RMS ground cost. Then
-\begin{equation}\label{eq:prefix}
-D_{q,k}\le D_{q,K}\quad(1\le q\le\infty),\qquad
-D_{\mathrm{RMS},K}\ge\sqrt{k/K}\,D_{\mathrm{RMS},k}.
+For two finite weighted row distributions with fixed baselines and common row weights across lengths, let \(D_{q,k}\) denote EMD with the \(L_q\) row cost, and let \(D_{\RMS,k}\) denote EMD with the RMS row cost. For \(1\le k\le K\) and \(1\le q\le\infty\),
+\begin{equation}\label{eq:fixed}
+D_{q,k}\le D_{q,K},\qquad
+\sqrt{k/K}\,D_{\RMS,k}\le D_{\RMS,K}.
 \end{equation}
-The same inequalities apply to the maximum over any fixed collection of orders.
+The same inequalities hold for the maximum over a fixed set of orders.
 \end{theorem}
 
 \begin{proof}
-Use the same row indices and weights for both prefix lengths. Every coupling is feasible for both lengths. For each pair of centered rows, truncating the difference can only decrease its unnormalized \(L_q\) norm. At \(q=2\), division by \(\sqrt K\) gives the stated RMS factor. Taking the minimum over couplings gives \eqref{eq:prefix}. Taking the maximum over a fixed collection preserves each inequality.
+For each pair of rows, the first \(k\) coordinates of its difference at length \(K\) are the length-\(k\) difference. All added terms in a finite \(q\)-power sum are nonnegative, and adding entries to a maximum cannot reduce it. The cost inequality therefore holds for each paired row. Multiplying by nonnegative coupling entries and summing preserves it. The coupling set is common to both lengths. Evaluating the short expected cost at an optimizer for the long cost gives the inequality for minima. The RMS claim follows by applying the \(q=2\) result and dividing by \(\sqrt K\). Taking maxima over the same orders also preserves the inequalities, with the same length factor for all orders.
 \end{proof}
 
-For example, each structure can use the coefficient \(C_*\) in \eqref{eq:constant} to form the baseline \((C_*\beta_j)_{j\ge1}\). For a threshold at length \(K\), Theorem~\ref{thm:fixed} permits rejection whenever the short-prefix lower bound already exceeds the threshold.
+For example, at \(k=1\) the fixed-baseline RMS distance for the lattices in Theorem~\ref{thm:failure} is \(1/2\). For length \(K=2\), the lower bound is \(\sqrt{1/2}\,(1/2)\), which is attained. A short RMS value without the factor would overestimate the long distance. A single order also supplies a lower bound for any maximum that includes that order, provided the corresponding one-order inequality applies.
 
-\begin{theorem}\label{thm:squared}
-Use the least-squares coefficient \eqref{eq:fit} at each length. Write \(e_{pr}=(x_{p,j}-y_{r,j})_{j=1}^{k}\) for the raw row differences of two structures. Then the transport cost
-\begin{equation}\label{eq:squared}
-W_{2,k}^2=\min_{\pi}\mathbb E_\pi
-\big\|e_{pr}-(c_S(k)-c_Q(k))\beta\big\|_2^2
+\subsection{Refitting with squared Euclidean transport}
+
+For a second solution, retain the fit and use a cost aligned with the least-squares objective. Let \(x_p,y_r\) be raw rows and put \(e_{pr}=x_p-y_r\). The cost of the refitted distributions is
+\begin{equation}\label{eq:sq}
+W_{2,k}^2=\min_{\pi\in\Pi(w,v)}\E_\pi
+\bigl\|e_{pr}-(c_S(k)-c_Q(k))\beta\bigr\|_2^2 .
 \end{equation}
-is nondecreasing in \(k\), provided the predictor and the raw rows agree on their common prefixes and the row weights are fixed.
+The theorem below uses nonzero predictors whose coordinates agree on common prefixes. This includes \(\beta_j\) in \eqref{eq:fit}.
+
+\begin{theorem}\label{thm:sq}
+Assume the raw rows and predictors agree on common prefixes and the weights are fixed. With the least-squares fits at each length, \(W_{2,k}^2\le W_{2,K}^2\) whenever \(k\le K\).
 \end{theorem}
 
 \begin{proof}
-For each coupling \(\pi\), its marginals give \(\mathbb E_\pi e_{pr}=\bar x-\bar y\). The scalar minimizing \(\mathbb E_\pi\|e_{pr}-t\beta\|_2^2\) over \(t\in\mathbb R\) is \(\langle\bar x-\bar y,\beta\rangle/\|\beta\|_2^2=c_S(k)-c_Q(k)\). For any choice of \(t\) and any coupling, going from \(k\) to \(K\ge k\) adds a sum of nonnegative squared errors. Taking the minima over \(t\) and the common coupling set preserves the inequality.
+Fix \(\pi\). Summing \(e_{pr}\) with weights \(\pi_{pr}\) gives \(\bar x-\bar y\) because its marginals are \(w,v\). Consequently the coefficient of \(t\) in the quadratic \(\E_\pi\|e_{pr}-t\beta\|_2^2\) is \(-2\langle\bar x-\bar y,\beta\rangle\), and the coefficient of \(t^2\) is \(\|\beta\|_2^2>0\). The minimizer is \(c_S(k)-c_Q(k)\) and is independent of \(\pi\). Hence \eqref{eq:sq} is the joint minimum over \((\pi,t)\). For every \((\pi,t)\), the objective at length \(K\) equals the objective at length \(k\) plus the expected sum of squares in the extra columns. It is therefore at least the minimum of the shorter objective. Minimizing the longer objective proves the claim.
 \end{proof}
 
-In \eqref{eq:squared}, the squares are averaged over a coupling before any square root is taken. By Definition 5.7 of \cite{higher}, the RMS-based EMD instead averages the row costs \(\|z\|_2/\sqrt{k}\).
+Taking square roots preserves this inequality for \(W_2\). A cutoff for \(W_2^2\) has units of length squared, whereas \(L_q\), \(W_2\), and RMS transport have units of length. Converting a \(W_2\) cutoff to its square is exact. Substituting that number for a cutoff on EMD-RMS changes the comparison criterion.
 
-\section{Stability under perturbations}\label{sec:stability}
+\begin{table}[htbp]
+\small\centering
+\caption{Properties of the short-prefix screening options. Cost comparison concerns which terms and transport problems are evaluated. It makes no ranking of wall-clock performance.}\label{tab:methods}
+\begin{tabularx}{\linewidth}{p{.24\linewidth}p{.13\linewidth}p{.21\linewidth}Y}
+\toprule
+Target cost and baseline & Refit & Certified lower bound & Use and cost considerations\\
+\midrule
+Original PDA with \(L_\infty\) or RMS & Yes for \(h\ge2\) & Fails in general & Same descriptor as reference. Requires full evaluation for the stated decision without a separate valid bound.\\
+Fixed baseline with \(L_q\) & No & \(D_{q,k}\) & Retains the \(L_q\) ground norm with a different baseline. An explicit coefficient or a precomputed fixed baseline is required.\\
+Fixed baseline with RMS & No & \(\sqrt{k/K}D_{\RMS,k}\) & Retains the RMS convention. The bound weakens when \(k\) is much smaller than \(K\).\\
+Refit and squared Euclidean cost & Yes & \(W_{2,k}^2\) & Fits and solves a transport problem on the short prefix. The target cost and threshold change from EMD-RMS.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{A threshold search}
+
+Choose the target cost at length \(K\) and its threshold \(\tau\) before comparing candidates. For the selected cost, let \(B_k\) be its short-prefix lower bound from Table~\ref{tab:methods}. The following pseudocode describes the complete decision rule. It reuses a short raw row if the enumerator supports incremental computation.
+
+\begin{quote}\small\ttfamily
+Input: query S, candidates Q, h, k, K, cost rule, threshold tau.\\
+For each Q, compute k raw entries and the lower bound Bk.\\
+If Bk exceeds tau, discard Q and record the bound.\\
+Otherwise compute the K-column target distance.\\
+Return candidates whose target distance is at most tau.
+\end{quote}
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.89\linewidth]{workflow-en.pdf}
+\caption{Screening logic for a prescribed long-prefix target cost. The early rejection branch uses a bound in the same units as the target threshold.}\label{fig:workflow}
+\end{figure}
+
+The condition \(B_k>\tau\) is sufficient for rejection. Equality belongs to the retained branch if the final threshold is inclusive. An adaptive policy can use multiple successive prefix lengths with correctly rescaled bounds. It may help when one short prefix is inconclusive, although its computational benefit depends on the dataset and implementation.
+
+\section{Perturbation stability}\label{sec:stability}
+
+\subsection{Matching sites and ranked configurations}
+
+An estimate \(D\le L\varepsilon\) says that the descriptor distance is bounded in proportion to the size of a perturbation. This matters when coordinates differ due to measurement, numerical relaxation, or a controlled shift. Assume two periodic sets have a common full-rank translation lattice and a translation-equivariant bijection \(f\) with \(\|f(p)-p\|_2\le\varepsilon\). The bijection induces a matching of equally weighted motif rows. The finite-distribution theorem below only requires a coupling with the resulting coordinate bounds. The common-lattice hypothesis gives a direct geometric way to obtain it.
+
+For any two sites \(u,v\), the reverse triangle inequality gives
+\[
+\bigl|\|u-v\|_2-\|f(u)-f(v)\|_2\bigr|
+\le \|f(u)-u\|_2+\|f(v)-v\|_2\le2\varepsilon.
+\]
+Averaging over all edges preserves this bound. For a fixed centre the bijection induces a bijection of admissible groups. Map the first \(j\) groups in the original order to the second structure. Their new scores are at most the old \(j\)-th score plus \(2\varepsilon\). So the new \(j\)-th score is no larger than that bound. Applying the same reasoning to \(f^{-1}\) gives the other side. Thus each matched row has raw coordinate errors at most \(2\varepsilon\). Theorem~4.3 of \cite{wkhigher} gives the original corresponding \(2\varepsilon\) bound for RMS transport on raw PDD and \(2\varepsilon k^{1/q}\) for \(L_q\), with \(k^{1/\infty}=1\), under its perturbation assumptions.
+
+\subsection{Projection and coupling average}
+
+Corollary~5.9 of \cite{wkhigher} treats the fitted deviations. At order one, common density means the fixed baselines are identical and cancel in every row difference, recovering the raw bound. At higher orders, the paper estimates the fitted coefficient change and states constants \(4\) for RMS and \(4k^{1/q}\) for \(L_q\). The least-squares fit subtracts a projection of the mean error. Figure~\ref{fig:projection} illustrates the projection on a line and the support of a coupling.
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.94\linewidth]{projection-en.pdf}
+\caption{A two-by-two transport example and a schematic Euclidean projection. Left arrows carry masses \(1/2,1/4,1/4\) from source sites \(0,3\) to target sites \(1,4\). Right, the residual of the mean error is orthogonal to the predictor line.}\label{fig:projection}
+\end{figure}
 
 \begin{theorem}\label{thm:stability}
-Use the coefficient \eqref{eq:fit}. If a coupling of two raw row distributions satisfies \(|e_{pr,j}|\le2\varepsilon\) on its support for all \(j\le k\), then the EMD of the fitted PDA rows with RMS ground cost is at most \(2\varepsilon\).
+Let \(k\ge1\) and use the same nonzero predictor vector \(\beta\) for the two least-squares fits. If a feasible coupling of their raw rows satisfies \(|e_{pr,j}|\le2\varepsilon\) for every supported pair and every \(j\le k\), then the fitted EMD with RMS row cost is at most \(2\varepsilon\).
 \end{theorem}
 
 \begin{proof}
-Fix a coupling with the stated property. Let \(P_\beta\) be orthogonal projection onto the span of \(\beta\), and let \(\bar e=\mathbb E_\pi e_{pr}\). The difference of the fitted baselines is \(P_\beta\bar e\). Expanding the square and using the projection identity gives
-\begin{equation}\label{eq:projection}
-\mathbb E_\pi\|e_{pr}-P_\beta\bar e\|_2^2
-=\mathbb E_\pi\|e_{pr}\|_2^2-\|P_\beta\bar e\|_2^2
-\le 4k\varepsilon^2 .
+Fix such a coupling, and put \(\bar e=\E_\pi e_{pr}=\bar x-\bar y\). Its agreement with the difference of averages follows from the marginals. Orthogonal projection \(P_\beta\) onto the line spanned by \(\beta\) has formula \(P_\beta \bar e=\langle\bar e,\beta\rangle\beta/\|\beta\|_2^2\). This is exactly the difference of the fitted baselines. Expand the expected squared residual:
+\begin{equation}\label{eq:proj}
+\begin{aligned}
+\E_\pi\|e_{pr}-P_\beta\bar e\|_2^2
+&=\E_\pi\|e_{pr}\|_2^2-2\langle\bar e,P_\beta\bar e\rangle
++\|P_\beta\bar e\|_2^2\\
+&=\E_\pi\|e_{pr}\|_2^2-\|P_\beta\bar e\|_2^2
+\le4k\varepsilon^2 .
+\end{aligned}
 \end{equation}
-Cauchy--Schwarz bounds the expected RMS cost of this coupling by \(2\varepsilon\). The minimum over couplings obeys the same bound.
+The second equality uses perpendicularity of \(\bar e-P_\beta\bar e\) and \(P_\beta\bar e\). The inequality uses the coordinate bound on the support and the total mass one. Cauchy--Schwarz for the probability weights gives \(\E_\pi\|e_{pr}-P_\beta\bar e\|_2\le\sqrt{\E_\pi\|e_{pr}-P_\beta\bar e\|_2^2}\). Division by \(\sqrt k\) bounds the RMS cost of this coupling by \(2\varepsilon\). The minimum over all couplings is bounded by the cost of this one.
 \end{proof}
 
-Consider a bijective periodic displacement that moves each site by at most \(\varepsilon\) and pairs the motif rows with equal weights. Under this pairing, every pairwise distance in a matched tuple changes by at most \(2\varepsilon\). The mean distances inherit the same estimate. At least \(j\) matched scores are at most the old \(j\)-th score plus \(2\varepsilon\), and reversing the pairing gives the other inequality. Thus the matched ranked scores differ by at most \(2\varepsilon\). The theorem improves the RMS bound \(4\varepsilon\) in Corollary 5.9(c) of \cite{higher} for this class of perturbations.
-
-The proof of that corollary bounds the last coordinate using the multiplier \(\gamma_k\beta_k\). Set \(\gamma_k=(\sum_{j=1}^k\beta_j)/(\sum_{j=1}^k\beta_j^2)\). For \(k\ge2\),
+The published pointwise derivation uses \(\gamma_k\beta_j\le1\), with \(\gamma_k=\sum_j\beta_j/\sum_j\beta_j^2\). For the predictor in \eqref{eq:fit} and \(k\ge2\), its last-coordinate multiplier is instead
 \begin{equation}\label{eq:multiplier}
-\gamma_k\beta_k-1=
-\frac{\sum_{j=1}^k\beta_j(\beta_k-\beta_j)}
-{\sum_{j=1}^k\beta_j^2}>0 .
+\gamma_k\beta_k-1
+=\frac{\sum_{j=1}^k\beta_j(\beta_k-\beta_j)}{\sum_{j=1}^k\beta_j^2}>0 .
 \end{equation}
-Positivity follows from the strict increase of \(\beta_j\). The coupling average in \eqref{eq:projection} gives the improved RMS bound directly.
+The terms are nonnegative and the first is positive. The coefficient estimate \(|c_S(k)-c_Q(k)|\le2\varepsilon\gamma_k\) still follows from the coordinate bound on the mean. For general \(L_q\), that estimate and the triangle inequality give \(2\varepsilon(k^{1/q}+\gamma_k\|\beta\|_q)\) on the stated coupling. The sign calculation in \eqref{eq:multiplier} concerns a proof step. Theorem~\ref{thm:stability} uses an expectation of squared errors to establish the improved RMS bound. It leaves open the optimal constant for geometric perturbations and does not use an \(L_\infty\) estimate to infer a novelty threshold.
 
-\section{Formal verification and implications}\label{sec:verification}
+\section{Numerical examples and screening checks}\label{sec:experiments}
 
-The accompanying Lean~4 project verifies the counting and quantile bounds, the lattice counterexample and its rational certificate, the prefix inequalities, and the RMS perturbation argument. The theorem \verb|conjecture55_limit| gives the limit. The additive error for the motif average is checked in \verb|crystal_average_bounded_error|. In Lean, the constant is written in lattice coordinates. The product coordinate map scales volume by \(|U|^h\), giving \eqref{eq:constant} in physical coordinates.
+The experiments use deterministic synthetic lattices with specified bases. The scripts retain every computed rank through \(4096\), the search radii, the fitted values, and the threshold decisions. There is no random sampling. Distances on the integer line and the short-prefix certificate use rational arithmetic. Euclidean norms for higher-dimensional lattices and fitted coefficients use double precision. The experiments illustrate the proved estimates on concrete structures.
 
-The numerical certificate is in \texttt{ScreeningCertificate.lean}. The prefix bounds and perturbation results are checked in \texttt{Screening.lean}, \texttt{FittedStability.lean}, and \texttt{Perturbations.lean}.
+\subsection{Six dimension--order combinations}
 
-The project was checked with \verb|lake build --wfail| under Lean~4.28.0 and Mathlib commit
-\texttt{8f9d9cff6bd728b17a24e163c9402775d9e6a365}. The axiom audit of 20 theorems reported only the standard Lean axioms \texttt{propext}, \texttt{Classical.choice}, and \texttt{Quot.sound}.
+For each \(\Z^n\), \(n=1,2,3\), orders one and two were enumerated. For a finite enumeration radius \(R_{\mathrm{enum}}\), every omitted group contains an omitted displacement of norm greater than this radius. Its score is therefore strictly larger than \(2R_{\mathrm{enum}}/(h+1)\) by \eqref{eq:radial}. Each run was checked to have the last retained score strictly below this boundary. The positive margins are recorded in \code{data/cutoffs.csv}. The finite windows therefore include the intended prefix, subject to the rounding precision of the Euclidean norm calculations. The integer-line scores were also checked against their exact formulas.
 
-For geometric crystal comparison, the limit explains the leading density contribution at large ranks. A short prefix can certify that a pair exceeds a prescribed long-prefix threshold when the baseline and cost satisfy Theorem~\ref{thm:fixed} or when the refitted cost is \eqref{eq:squared}. These conclusions concern the geometry of unlabelled periodic point sets and supply bounds that can be tested in crystal database workflows.
+\begin{table}[htbp]
+\centering\small
+\caption{Volumes and computed scores for unit-density lattices at \(k=4096\). The normalization is \(a/\beta_k\), and the additive error is \(a-C_*\beta_k\). Values are rounded to six decimals.}\label{tab:volnum}
+\begin{tabular}{rrrrrrr}
+\toprule
+\(n\)&\(h\)&\(V_{n,h}\)&\(C_*\)&\(a\)&\(a/\beta_k\)&Additive error\\
+\midrule
+\VolumeRows
+\bottomrule
+\end{tabular}
+\end{table}
 
-\begin{thebibliography}{9}
-\bibitem{pdd}
-D.~Widdowson and V.~Kurlin, Pointwise distance distributions for detecting near-duplicates in large materials databases, \emph{SIAM Journal on Applied Mathematics} \textbf{86} (2026), no.~3, 898--918.
-\href{https://doi.org/10.1137/25M1736657}{doi:10.1137/25M1736657}.
+\begin{figure}[htbp]
+\centering\includegraphics[width=\linewidth]{asymptotic-en.pdf}
+\caption{Computed normalized scores relative to their theoretical coefficients (top), and additive errors (bottom), for \(n=1,2,3\) and \(h=1,2\). The normalized curves use \(a/(C_*\beta_k)\) so that all predictions are at one. The additive errors retain the units of length and can oscillate.}\label{fig:asym}
+\end{figure}
 
-\bibitem{higher}
-D.~Widdowson and V.~Kurlin, Higher-order, generically complete, continuous, and polynomial-time invariants of crystalline materials, \emph{Computational and Applied Mathematics} \textbf{46} (2027), article 67. Published online 5 October 2026.
-\href{https://doi.org/10.1007/s40314-026-03905-z}{doi:10.1007/s40314-026-03905-z}.
-\end{thebibliography}
+Figure~\ref{fig:asym} shows the two types of errors separately. In particular, the line example at order one has alternating errors \(0\) and \(1/2\) at all ranks. At order two, at the last rank of the block for span \(\ell\) the error tends to \(1/3\), whereas at the first rank of that block it tends to \(1\), as derived in Appendix~\ref{app:line}. These are explicit instances of bounded additive error without additive convergence, despite convergence of normalized scores.
 
+\subsection{Equal density and different local structure}
+
+Compare the square lattice \(\Z^2\) with the rectangular lattice \((2\Z)\times(\tfrac12\Z)\). Both cells have area one. The two shortest distances for the rectangular lattice are \(1/2,1/2\), whereas the square lattice starts with \(1,1\). Their order-two ranks also differ at finite lengths. Figure~\ref{fig:density} compares the raw scores to their common predicted leading curve. The dilated lattice \(2\Z^2\) has density \(1/4\), and doubling coordinates doubles every score as well as the predicted coefficient. The equal-density comparison reveals differences at small ranks without requiring a difference in the leading coefficient.
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.94\linewidth]{density-en.pdf}
+\caption{Computed raw order-one and order-two scores in two dimensions. The square and rectangular lattices share a unit-density leading curve. The square lattice dilated by two has lower density and a larger length scale.}\label{fig:density}
+\end{figure}
+
+\subsection{Refitting, corrected costs, and candidate counts}
+
+The order-two singleton examples at ranks \(1\) through \(64\) illustrate that the refitted supremum cost can vary in either direction. Figure~\ref{fig:screening} marks the strict threshold reversal at lengths \(9\) and \(10\). The fixed-baseline supremum cost and the refitted squared transport are nondecreasing on this range. The fixed-baseline RMS cost is not used unscaled as a lower bound. Its \(\sqrt{k}\)-scaled curve agrees with the monotonic \(L_2\) cost.
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=\linewidth]{screening-en.pdf}
+\caption{Computed screening comparisons for \(\Z\) and \(2\Z\). Left, original joint supremum across orders one and two, with the threshold reversal marked. Centre, the order-two fixed-baseline supremum. Right, order-two refitted squared transport. The vertical scales represent different cost conventions.}\label{fig:screening}
+\end{figure}
+
+To demonstrate the threshold workflow, take \(61\) evenly spaced candidates \(s\Z\) with \(s\in[1/2,2]\), query \(\Z\), order \(2\), and prefix lengths \(8,48\). Each fit scales linearly in \(s\), so the length-valued costs scale by \(|1-s|\) and the squared costs by \(|1-s|^2\). Comparing the short-bound decisions with exhaustive long-prefix decisions gives the counts in Table~\ref{tab:scan}. Thresholds are chosen separately for each cost. This is an illustration of the decision rule on a family of scaled singleton rows. It provides no database timing comparison.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Synthetic threshold search over scaled line lattices. A false rejection is a short-prefix rejection that meets the long-prefix threshold.}\label{tab:scan}
+\begin{tabular}{lrrrrrrr}
+\toprule
+Cost & Candidates & \(k\) & \(K\) & \(\tau\) & Short rejects & Full accepts & False rejects\\
+\midrule
+\ScreenRows
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{A matched perturbation family}
+
+We compare \(\Z\) with the sites \(j+(-1)^j\varepsilon\), for \(j\in\Z\) and \(0\le\varepsilon\le0.24\). The sites retain their order, and matching site \(j\) to its perturbed location commutes with translations by two. Use motifs with two sites and weight \(1/2\) each. The raw rows of the two reference sites coincide, so every feasible coupling gives the same transport cost after centering. We enumerate rational one-dimensional coordinates for \(h=1,2\), \(k=4,12,24\), and nine displacements. The script checks the omitted-score bound, the supportwise raw coordinate inequality, and the RMS estimate.
+
+\begin{table}[htbp]
+\centering
+\caption{Computed RMS transport for the perturbed line at \(h=2,k=12\). The upper bound applies to the fitted distribution.}\label{tab:pert}
+\begin{tabular}{rrrr}
+\toprule
+\(\varepsilon\)&Raw PDD&Fitted PDA&\(2\varepsilon\)\\
+\midrule
+\RMSExample
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.83\linewidth]{perturbation-en.pdf}
+\caption{Computed RMS transport costs for the matched line perturbation at order two, together with the original \(4\varepsilon\) and improved \(2\varepsilon\) bounds. The sample is deterministic and does not estimate worst-case perturbations.}\label{fig:pert}
+\end{figure}
+
+\FloatBarrier
+\section{Lean 4 verification and reproducibility}\label{sec:lean}
+
+Lean checks formal statements and proof terms against its kernel \cite{lean4}. The code uses Lean~4.28.0 and Mathlib revision \texttt{8f9d9cff6bd728b17a24e163c9402775d9e6a365}. We reran \verb|lake build --wfail| in a clean project copy with locally cached, locked dependencies. The build reported 3117 jobs. We separately re-elaborated \verb|PDDLimit/Audit.lean| in the Lake environment. The 20 audited statements depend only on \texttt{propext}, \texttt{Classical.choice}, and \texttt{Quot.sound}. The reproducibility package includes the source and logs, and Table~\ref{tab:lean} lists the corresponding modules.
+
+\begin{table}[htbp]
+\small\centering
+\caption{Main mathematical results and formal coverage. The project-wide verification report identifies the exact files, theorem names and hypotheses.}\label{tab:lean}
+\begin{tabularx}{\linewidth}{p{.23\linewidth}YY}
+\toprule
+Result & Module and Lean statement & Checked scope\\
+\midrule
+Theorem~\ref{thm:limit} & \code{Collisions} and \code{BoundedError}, limit and bounded error & Real invertible coordinate model. Limit at \(h\ge2\) and bounded-error results for \(h\ge1\). Volume is in lattice coordinates.\\
+Theorem~\ref{thm:failure} & \code{ScreeningCertificate}, refit and RMS counterexamples & Infinite integer lattices and exact rational inequality. Single-row ground-cost correspondence checked.\\
+Theorem~\ref{thm:fixed} & \code{Screening}, fixed baseline \(L_q\), sup and RMS & Finite weighted row plans with a common feasible set, plus the maximum bound.\\
+Theorem~\ref{thm:sq} & \code{FittedStability}, refitted squared prefix & Finite rows, common predictor prefixes, nonzero short predictor and feasible probability marginals.\\
+Theorem~\ref{thm:stability} & \code{FittedStability}, fitted RMS transport & A coupling with a uniform coordinate error bound. Pairwise and rank changes are checked in \code{Perturbations}.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+In formal lattice coordinates, write \(B_{\rm coord}\) for the unit ball of the score after applying the lattice basis map to each displacement. The map \(A^h\) multiplies \(d\)-dimensional volume by \(|U|^h\). Thus \(m^h\vol_d(B_{\rm coord})=\rho^hV_{n,h}\), giving the physical-coordinate formula. The ellipsoid evaluation in \eqref{eq:volume}, slope-rate corollary, numerical arrays and materials interpretations are supported here by the mathematical derivation or the reproducible computations. They are outside the Lean statements audited in this package. The passage from a geometric periodic matching to a feasible weighted row coupling is presented explicitly in Section~\ref{sec:stability}.
+
+\section{Discussion}\label{sec:discussion}
+
+The limit separates the large-rank contribution of density from the variation visible at finite ranks. The volume factor arises from configurations in a product space. Once dimension and order are fixed, uniformly scaling a crystal changes the limiting coefficient as a length and leaves the dimensionless volume intact. The exact coefficient supplies a fixed background with a theoretical interpretation. A short fitted baseline adapts to the observed ranks but can absorb part of their local variation, and coefficients estimated on different prefixes need not align as rows.
+
+The result extends the order-one asymptotics in \cite{wkhigher} and resolves their higher-order limit under the finite-volume hypotheses used here. The counterexample revises the prefix-screening interpretation of Lemma~5.8. The corrected bounds use the same raw ranks but specify compatibility between the baseline, prefix length, and transport cost. The stronger fitted RMS result concerns the matched perturbation model. The issue in the published pointwise inequality is separated from the proof of the RMS estimate and from possible sharp pointwise bounds.
+
+In crystal search, the proven upper bound under matched displacement helps interpret descriptor changes under controlled geometric shifts. The proven lower bounds support exact early rejection for a specified final descriptor distance. Geometric database deduplication, near-duplicate retrieval, and novelty ranking are potential uses. High-throughput structure searches and machine-learning pipelines could use these descriptors or the density-adjusted residuals, with predictive validity requiring external evaluation. The numerical exercises here involve synthetic structures. They measure neither retrieval accuracy on experimental structures nor runtime improvements on a crystal database.
+
+The unlabelled full-rank model has finite motif weights and Euclidean coordinates. Chemical species and occupancies require an explicit extension. Point defects and disordered configurations may violate the periodic or matching assumptions. Two-dimensional crystals embedded in three dimensions suggest using a translation rank and an intrinsic or mixed-dimensional scaling law. The present density formula in \eqref{eq:crystal} uses ambient full rank. At high order there are many neighbour subsets, and the count estimates do not supply a fast enumerator for arbitrary motifs. The volume in dimensions \(nh\) is explicitly evaluated here at orders one and two. Finite sequences can have descriptor collisions, so a successful geometric comparison need not identify a unique material.
+
+Further work includes section formulas or rigorously controlled integration for \(h\ge3\), species-aware scores, periodic structures of smaller rank, and perturbations with defects or partial matchings. Benchmarking layered screening on real databases would quantify the relationship between cutoff, prefix length, retained population, and time. An adaptive choice of prefix length can then be evaluated against full comparisons. A separate question is whether the proved \(2\varepsilon\) constant is optimal in geometrically realizable examples.
+
+\section{Conclusion}\label{sec:conclusion}
+
+Counting ordered tuples in a product-space norm ball, discarding coincidences, and bounding the inverse count proves the higher-order limit with a density-dependent coefficient and a bounded additive error. Ellipsoidal sections evaluate the order-two coefficient. A rationally certified example shows why refitting can invalidate a short-prefix exclusion. Fixing the baseline, rescaling the RMS lower bound, or using squared Euclidean transport with the refit supplies a valid decision rule. Orthogonal projection gives the \(2\varepsilon\) fitted RMS guarantee when a coupling controls all raw coordinates. The Lean build checks the main mathematical statements in the indicated models. Crystal database performance, chemical labelling, and geometric perturbations beyond the stated matching model remain to be evaluated.
+
+\paragraph{Data, code, and AI assistance.}
+All synthetic data, code, and generated figures accompany this manuscript. Codex assisted with mathematical development, Lean implementation, numerical scripts, and drafting. The verification report states the evidence and scope available for review.
+
+\appendix
+\section{Ellipsoid section calculation}\label{app:ellipse}
+
+Put the midpoint of the foci at the origin of a coordinate system and write the longitudinal coordinate of \(y\) as \(z\) and its transverse vector as \(v\). Let \(a=(3-r)/2\), \(c=r/2\), and \(b^2=a^2-c^2>0\). Along the ray at a fixed \(z\), the sum of focal distances is increasing in \(\|v\|\). For \(|z|\le a\), insert \(\|v\|^2=b^2(1-z^2/a^2)\) into the two squared distances \((z\pm c)^2+\|v\|^2\). The results are \((a\pm cz/a)^2\). Both square roots are nonnegative and their sum is \(2a\). If \(|z|>a\) the sum exceeds \(2a\) even at \(v=0\). This establishes the ellipsoidal section with axes \(a,b,\ldots,b\). The volume is \(\omega_n ab^{n-1}\) by linear scaling from the Euclidean ball. In one dimension the same focal inequality gives the interval \([-a,a]\). For the three reported dimensions the beta integrals are \(1,4/15,1/12\), respectively, by direct integration.
+
+\section{Rational certificate for the refitted threshold}\label{app:certificate}
+
+Let
+\[
+\begin{aligned}
+(u_1,\ldots,u_{10})={}&(1000000,1414213,1732050,2000000,2236067,\\
+&2449489,2645751,2828427,3000000,3162277).
+\end{aligned}
+\]
+For each \(j\), the integer inequalities \(u_j^2\le10^{12}j\le(u_j+1)^2\) give \(L_j=u_j/10^6\le\sqrt j\le U_j=(u_j+1)/10^6\). Since \(a_j>0\), substituting these bounds into \eqref{eq:refit} encloses \(b_9\) in \([0.796618,0.796620]\) and \(b_{10}\) in \([0.805101,0.805102]\), treating the decimals as rationals. The first residual for \(k=9\) satisfies \(4/3-b_9\ge 4/3-0.796620>533/1000\). At \(k=10\), on each constant segment of \(a_j\), \(a_j-b_{10}\sqrt{j}\) is decreasing. Check \(j=1,3,4,9,10\), the endpoints of those segments. For each, use
+\[
+a_j-0.805102 U_j\le a_j-b_{10}\sqrt j\le a_j-0.805101 L_j.
+\]
+At all five endpoints both sides lie in \([-533/1000,533/1000]\), by rational arithmetic. The full check is duplicated in \code{scripts/experiment.py}, with root bounds in the CSV. The mathematically exact inequalities in Theorem~\ref{thm:failure} follow regardless of display rounding.
+
+\section{Two edge ranks of the line example}\label{app:line}
+
+For \(\Z\) at order two the final rank of span \(\ell\) is \(k_\ell=3\ell(\ell-1)/2\). With \(C_*=2/\sqrt{27}\), the leading term at this rank is \((2/3)\sqrt{\ell(\ell-1)}\). Rationalization gives \(\ell-\sqrt{\ell(\ell-1)}=\ell/(\ell+\sqrt{\ell(\ell-1)})\to1/2\). The error thus tends to \(1/3\). At the first rank \(k_{\ell-1}+1\) of the same span, the analogous difference before multiplication by \(2/3\) is \(\ell-\sqrt{(\ell-1)(\ell-2)+2/3}\). Rationalizing and dividing numerator and denominator by \(\ell\) yields \(3/2\) in the limit. Hence the additive error there tends to \(1\).
+
+\bibliographystyle{unsrt}
+\bibliography{references}
 \end{document}
