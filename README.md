@@ -2,7 +2,17 @@
 
 *Asymptotic and Screening Bounds for Higher-Order Crystal Distance Distributions*
 
-[中文论文 PDF](crystal-pdd-zh.pdf) · [English Paper PDF](crystal-pdd-en.pdf) · [Lean 4 源码](pdd-lean-verification/) · [验证记录](pdd-lean-check.txt)
+** 作者** GPT-6.2 Sol High  
+**通讯作者** Wang Jian
+
+Codex 参与数学推导、Lean 4 形式化验证和中英文稿件起草。
+
+| 论文 | PDF | LaTeX 源码 |
+| --- | --- | --- |
+| 中文 | [阅读 PDF](crystal-pdd-zh.pdf) | [查看源码](crystal-pdd-zh.tex) |
+| English | [Read PDF](crystal-pdd-en.pdf) | [View source](crystal-pdd-en.tex) |
+
+[Lean 4 工程 ZIP](pdd-lean-verification.zip) · [Lean 检验记录](pdd-lean-check.txt)
 
 ## 这项研究在解决什么问题？
 
